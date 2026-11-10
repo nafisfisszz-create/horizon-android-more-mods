@@ -34,3 +34,11 @@ SCOPE:
 The source changes have targeted Python regression coverage. Rust/Android
 compilation has not been verified in this environment because cargo/rustc are
 not installed; run the Android GitHub Actions build after applying the patch.
+
+
+ANDROID PREPARE FIX (run 42918411323)
+- Android preparation now fetches Minecraft version metadata from the exact
+  immutable URL pinned by research-lock.json (manifest_sha1), not the moving
+  version_manifest_v2 catalog. This avoids Mojang-republished 26.3 metadata
+  that horizon-prepare rejects.
+- Adds tests/test_android_prepare_manifest_pin.py to lock this behavior.

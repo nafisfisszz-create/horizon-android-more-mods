@@ -20,7 +20,6 @@ import tempfile
 import lab
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 RUNTIMES = "https://launchermeta.mojang.com/v1/products/java-runtime/2ec0cc96c44e5a76b9c8b7c39df7210883d12871/all.json"
 
 
@@ -56,15 +55,20 @@ def download_game(version, directory):
     pins = json.loads((ROOT / 'research-lock.json').read_text())['minecraft']
     if version != pins['version']:
         raise ValueError(f"This engine implements {pins['version']}; {version} is unsupported")
-    entry = next((v for v in fetch_json(MANIFEST)['versions'] if v['id'] == version), None)
-    if entry is None:
-        raise ValueError(f"Mojang does not list Minecraft {version}")
-    # Mojang metadata may be republished: lab.download checks the catalog SHA-1,
-    # and client/server jar hashes are checked against the engine pins below.
+    # Do not resolve this through version_manifest_v2.json: that catalog points
+    # at Mojang's newest republished version JSON, whose assetIndex may differ
+    # from the metadata pinned and recognized by horizon-prepare. Fetch the
+    # exact immutable package URL recorded in research-lock.json instead.
+    manifest_sha1 = pins['manifest_sha1']
+    manifest_url = f"https://piston-meta.mojang.com/v1/packages/{manifest_sha1}/{version}.json"
     versions = directory / 'versions' / version
     manifest_path = versions / f'{version}.json'
-    lab.download(entry['url'], manifest_path, entry['sha1'])
-    manifest = json.loads(manifest_path.read_text())
+    lab.download(manifest_url, manifest_path, manifest_sha1)
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    if manifest.get('id') != version:
+        raise ValueError(f"Pinned Mojang manifest does not describe Minecraft {version}")
+    if manifest.get('javaVersion', {}).get('majorVersion') != pins['java_major']:
+        raise ValueError(f"Minecraft {version} manifest Java version differs from research-lock.json")
     files = []
     for side in ['client', 'server']:
         artifact = manifest['downloads'][side]

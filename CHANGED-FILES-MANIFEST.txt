@@ -1,12 +1,15 @@
-HORIZON ANDROID — PUNCHY MOVES RESOURCE-PACK COMPATIBILITY DELTA
+HORIZON ANDROID — PUNCHY MOVES RESOURCE-PACK COMPATIBILITY + ANDROID PREPARE FIX
 Baseline: horizon-android-more-mods-android.zip
-Incremental base: previous animation-only cumulative delta
-Scope: read the enabled external resource-pack overlay; no third-party animation assets bundled.
+Scope: cumulative source delta with external Punchy Moves resource-pack compatibility and deterministic Minecraft metadata preparation.
 
-Cumulative: 60 added, 39 modified, 0 removed
-CUMULATIVE FILES (apply to original source ZIP)
+Added files: 62
+Modified files: 41
+Removed files: 0
+
+ADDED FILES
 ADDED     APPLY-INSTRUCTIONS.txt
 ADDED     DELETE-FILES-FOR-UPGRADE.txt
+ADDED     PATCH-INSTRUCTIONS.txt
 ADDED     mods/official/connected-textures/mixins/connected_textures/mesh.rs
 ADDED     mods/official/horizon-physics/PORT.toml
 ADDED     mods/official/horizon-physics/README.md
@@ -63,18 +66,15 @@ ADDED     mods/official/punchy-moves/README.md
 ADDED     mods/official/punchy-moves/horizon-native.json
 ADDED     mods/official/punchy-moves/mixins/punchy_moves/rig.rs
 ADDED     mods/official/punchy-moves/mixins/punchy_moves/runtime.rs
+ADDED     tests/test_android_prepare_manifest_pin.py
 ADDED     tests/test_horizon_physics_title_setup_input.py
 ADDED     tests/test_punchy_moves_android_wiring.py
+
+MODIFIED FILES
+MODIFIED  CHANGED-FILES-MANIFEST.txt
 MODIFIED  Cargo.lock
-MODIFIED  crates/horizon-client-render/src/block_entity_render.rs
-MODIFIED  crates/horizon-client-render/src/gfx/native_material.rs
-MODIFIED  crates/horizon-client-render/src/lib.rs
-MODIFIED  crates/horizon-client-render/src/mesher.rs
-MODIFIED  crates/horizon-client-render/src/options_ui.rs
-MODIFIED  crates/horizon-client-render/src/particles.rs
 MODIFIED  crates/horizon-client/Cargo.toml
 MODIFIED  crates/horizon-client/src/animate_tick.rs
-MODIFIED  crates/horizon-client/src/game.rs
 MODIFIED  crates/horizon-client/src/game/android_bundled.rs
 MODIFIED  crates/horizon-client/src/game/boats.rs
 MODIFIED  crates/horizon-client/src/game/client_ambient.rs
@@ -89,11 +89,18 @@ MODIFIED  crates/horizon-client/src/game/options.rs
 MODIFIED  crates/horizon-client/src/game/perspective.rs
 MODIFIED  crates/horizon-client/src/game/remote.rs
 MODIFIED  crates/horizon-client/src/game/shader_packs.rs
+MODIFIED  crates/horizon-client/src/game.rs
 MODIFIED  crates/horizon-client/src/lib.rs
-MODIFIED  crates/horizon-client/src/mobs.rs
 MODIFIED  crates/horizon-client/src/mobs/anim.rs
 MODIFIED  crates/horizon-client/src/mobs/render.rs
+MODIFIED  crates/horizon-client/src/mobs.rs
 MODIFIED  crates/horizon-client/src/title.rs
+MODIFIED  crates/horizon-client-render/src/block_entity_render.rs
+MODIFIED  crates/horizon-client-render/src/gfx/native_material.rs
+MODIFIED  crates/horizon-client-render/src/lib.rs
+MODIFIED  crates/horizon-client-render/src/mesher.rs
+MODIFIED  crates/horizon-client-render/src/options_ui.rs
+MODIFIED  crates/horizon-client-render/src/particles.rs
 MODIFIED  docs/hnmod-android-port.md
 MODIFIED  mods/official/connected-textures/PORT.toml
 MODIFIED  mods/official/connected-textures/README.md
@@ -103,17 +110,21 @@ MODIFIED  mods/official/punchy/mixins/punchy/README.md
 MODIFIED  mods/official/punchy/mixins/punchy/engine/engine.rs
 MODIFIED  mods/official/punchy/mixins/punchy/runtime.rs
 MODIFIED  tests/test_punchy_hand_motion_rewrite.py
+MODIFIED  tools/android_prepare.py
 MODIFIED  tools/check_hnmod_official_layout.py
 
-Incremental: 1 added, 9 modified, 0 removed
-INCREMENTAL FILES (apply after previous animation-only cumulative delta)
-ADDED     mods/official/punchy-moves/NOTICE.txt
-MODIFIED  Cargo.lock
-MODIFIED  crates/horizon-client/Cargo.toml
-MODIFIED  crates/horizon-client/src/game/android_bundled.rs
-MODIFIED  mods/official/punchy-moves/PORT.toml
-MODIFIED  mods/official/punchy-moves/README.md
-MODIFIED  mods/official/punchy-moves/horizon-native.json
-MODIFIED  mods/official/punchy-moves/mixins/punchy_moves/rig.rs
-MODIFIED  mods/official/punchy-moves/mixins/punchy_moves/runtime.rs
-MODIFIED  tests/test_punchy_moves_android_wiring.py
+REMOVED FILES
+(none)
+
+BUILD FAILURE FIX — GitHub Actions run 42918411323
+Failure step: Prepare pinned Minecraft engine data (before APK compilation).
+Run commit: 2144e9556bf97ba25b73fd0ee71c9e99f3e7c437.
+Cause: tools/android_prepare.py resolved the 26.3 version JSON through the moving Mojang version catalog; the returned republished JSON SHA-1 9f67e10ed013deeaad20ac3c800652765d493408 is not accepted by the engine pin.
+Fix: fetch the immutable version JSON from https://piston-meta.mojang.com/v1/packages/{research-lock.json minecraft.manifest_sha1}/26.3.json, verify it with the pinned SHA-1, and validate Minecraft id and Java major before downloading client/server artifacts.
+Offline regression coverage: tests/test_android_prepare_manifest_pin.py.
+
+VALIDATION
+pytest -q tests/test_android_prepare_manifest_pin.py tests/test_punchy_moves_android_wiring.py tests/test_horizon_physics_title_setup_input.py: 18 passed.
+python -m py_compile tools/android_prepare.py tests/test_android_prepare_manifest_pin.py: passed.
+Archive integrity and clean extraction simulation: passed.
+Full Android APK build has not yet been run; start a NEW GitHub Actions Dev Build after applying this patch.
