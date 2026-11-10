@@ -1,143 +1,119 @@
-HORIZON ANDROID CUMULATIVE SOURCE DELTA
+HORIZON ANDROID — PUNCHY MOVES RESOURCE-PACK COMPATIBILITY DELTA
 Baseline: horizon-android-more-mods-android.zip
-Target: current source after Connected Textures, Horizon Physics, Punchy Moves,
-and first-person motion transfer into Punchy.
+Incremental base: previous animation-only cumulative delta
+Scope: read the enabled external resource-pack overlay; no third-party animation assets bundled.
 
-Modified files: 38
-Added files: 58
-Removed files: 0
+Cumulative: 60 added, 39 modified, 0 removed
+CUMULATIVE FILES (apply to original source ZIP)
+ADDED     APPLY-INSTRUCTIONS.txt
+ADDED     DELETE-FILES-FOR-UPGRADE.txt
+ADDED     mods/official/connected-textures/mixins/connected_textures/mesh.rs
+ADDED     mods/official/horizon-physics/PORT.toml
+ADDED     mods/official/horizon-physics/README.md
+ADDED     mods/official/horizon-physics/horizon-native.json
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/aired.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/attack.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/banner.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/boats.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/bobber.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/builtin.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/camera.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/campfire_smoke.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/cape.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/catch.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/collapse.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/crack.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/destroy.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/eat.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/explode.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/fire_smoke.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/fishing.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/fluid.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/fxc.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/horizon-mixin.toml
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/items.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/leads.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/listed.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/mob.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_drag.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_draw.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_key.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_layout.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_mouse.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/options_scroll.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/part.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/player_model.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/runtime.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/settings.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/settings_click.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/setup.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/setup_click.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/setup_draw.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/setup_load.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/shader.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/shader_pack.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/sprint.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/sway.rs
+ADDED     mods/official/horizon-physics/mixins/horizon_physics/world.rs
+ADDED     mods/official/punchy-moves/LICENSE
+ADDED     mods/official/punchy-moves/NOTICE.md
+ADDED     mods/official/punchy-moves/NOTICE.txt
+ADDED     mods/official/punchy-moves/PORT.toml
+ADDED     mods/official/punchy-moves/README.md
+ADDED     mods/official/punchy-moves/horizon-native.json
+ADDED     mods/official/punchy-moves/mixins/punchy_moves/rig.rs
+ADDED     mods/official/punchy-moves/mixins/punchy_moves/runtime.rs
+ADDED     tests/test_horizon_physics_title_setup_input.py
+ADDED     tests/test_punchy_moves_android_wiring.py
+MODIFIED  Cargo.lock
+MODIFIED  crates/horizon-client-render/src/block_entity_render.rs
+MODIFIED  crates/horizon-client-render/src/gfx/native_material.rs
+MODIFIED  crates/horizon-client-render/src/lib.rs
+MODIFIED  crates/horizon-client-render/src/mesher.rs
+MODIFIED  crates/horizon-client-render/src/options_ui.rs
+MODIFIED  crates/horizon-client-render/src/particles.rs
+MODIFIED  crates/horizon-client/Cargo.toml
+MODIFIED  crates/horizon-client/src/animate_tick.rs
+MODIFIED  crates/horizon-client/src/game.rs
+MODIFIED  crates/horizon-client/src/game/android_bundled.rs
+MODIFIED  crates/horizon-client/src/game/boats.rs
+MODIFIED  crates/horizon-client/src/game/client_ambient.rs
+MODIFIED  crates/horizon-client/src/game/end.rs
+MODIFIED  crates/horizon-client/src/game/fishing.rs
+MODIFIED  crates/horizon-client/src/game/item_draw.rs
+MODIFIED  crates/horizon-client/src/game/item_particles.rs
+MODIFIED  crates/horizon-client/src/game/lan_particles.rs
+MODIFIED  crates/horizon-client/src/game/leads.rs
+MODIFIED  crates/horizon-client/src/game/native_shaders.rs
+MODIFIED  crates/horizon-client/src/game/options.rs
+MODIFIED  crates/horizon-client/src/game/perspective.rs
+MODIFIED  crates/horizon-client/src/game/remote.rs
+MODIFIED  crates/horizon-client/src/game/shader_packs.rs
+MODIFIED  crates/horizon-client/src/lib.rs
+MODIFIED  crates/horizon-client/src/mobs.rs
+MODIFIED  crates/horizon-client/src/mobs/anim.rs
+MODIFIED  crates/horizon-client/src/mobs/render.rs
+MODIFIED  crates/horizon-client/src/title.rs
+MODIFIED  docs/hnmod-android-port.md
+MODIFIED  mods/official/connected-textures/PORT.toml
+MODIFIED  mods/official/connected-textures/README.md
+MODIFIED  mods/official/connected-textures/src/native_connected_textures.rs
+MODIFIED  mods/official/punchy/README.md
+MODIFIED  mods/official/punchy/mixins/punchy/README.md
+MODIFIED  mods/official/punchy/mixins/punchy/engine/engine.rs
+MODIFIED  mods/official/punchy/mixins/punchy/runtime.rs
+MODIFIED  tests/test_punchy_hand_motion_rewrite.py
+MODIFIED  tools/check_hnmod_official_layout.py
 
-PUNCHY FIRST-PERSON OWNERSHIP
-Punchy now owns first-person procedural hand motion. Its runtime samples player
-movement and applies the HandMotion layer to first-person arm/item poses.
-Punchy Moves no longer owns first-person arm/item transforms or first-person
-motion settings; it remains responsible for third-person player motion and
-elytra trails. The existing Punchy action/item animation system remains intact.
-
-BUILD FIX FOR GITHUB ACTIONS RUN 42834568412
-The Android build reported Rust E0596 in
-crates/horizon-client/src/mobs/render.rs:1120 because `base` was mutated after
-an immutable binding. The Android Punchy Moves adapter binding is now `let mut
-base`, allowing the following matrix multiplications. This addresses the
-reported compiler error; rerun CI to check for any subsequent errors.
-
-APPLICATION
-Extract this archive into the original project root and allow it to overwrite
-the listed files. This is a delta archive, not a full source project. No source
-files were deleted from the baseline.
-
-VALIDATION
-Focused Punchy/Punchy Moves integration tests: 12 passed.
-Official Android native-mod layout and registration checker: passed.
-A dedicated regression test now asserts that the Android-only body transform
-binding is mutable before its matrix multiply-assignments.
-The full repository pytest collection is not runnable from the supplied source
-archive in this environment: duplicate test module names exist under tools/ and
-tests/, and parity tests require the generated .local/minecraft/26.3 client.jar.
-Rust/Android compilation was not run because cargo, rustc and rustfmt are absent
-from the editing environment. The supplied GitHub Actions log showed one fatal
-Rust compiler error (E0596); this source delta fixes that exact compiler error.
-A clean APK build still requires running the Android workflow against this delta.
-
-MODIFIED FILES
-CHANGED-FILES-MANIFEST.txt
-crates/horizon-client-render/src/block_entity_render.rs
-crates/horizon-client-render/src/gfx/native_material.rs
-crates/horizon-client-render/src/lib.rs
-crates/horizon-client-render/src/mesher.rs
-crates/horizon-client-render/src/options_ui.rs
-crates/horizon-client-render/src/particles.rs
-crates/horizon-client/src/animate_tick.rs
-crates/horizon-client/src/game.rs
-crates/horizon-client/src/game/android_bundled.rs
-crates/horizon-client/src/game/boats.rs
-crates/horizon-client/src/game/client_ambient.rs
-crates/horizon-client/src/game/end.rs
-crates/horizon-client/src/game/fishing.rs
-crates/horizon-client/src/game/item_draw.rs
-crates/horizon-client/src/game/item_particles.rs
-crates/horizon-client/src/game/lan_particles.rs
-crates/horizon-client/src/game/leads.rs
-crates/horizon-client/src/game/native_shaders.rs
-crates/horizon-client/src/game/options.rs
-crates/horizon-client/src/game/perspective.rs
-crates/horizon-client/src/game/remote.rs
-crates/horizon-client/src/game/shader_packs.rs
-crates/horizon-client/src/lib.rs
-crates/horizon-client/src/mobs.rs
-crates/horizon-client/src/mobs/anim.rs
-crates/horizon-client/src/mobs/render.rs
-crates/horizon-client/src/title.rs
-docs/hnmod-android-port.md
-mods/official/connected-textures/PORT.toml
-mods/official/connected-textures/README.md
-mods/official/connected-textures/src/native_connected_textures.rs
-mods/official/punchy/README.md
-mods/official/punchy/mixins/punchy/README.md
-mods/official/punchy/mixins/punchy/engine/engine.rs
-mods/official/punchy/mixins/punchy/runtime.rs
-tests/test_punchy_hand_motion_rewrite.py
-tools/check_hnmod_official_layout.py
-
-ADDED FILES
-mods/official/connected-textures/mixins/connected_textures/mesh.rs
-mods/official/horizon-physics/PORT.toml
-mods/official/horizon-physics/README.md
-mods/official/horizon-physics/horizon-native.json
-mods/official/horizon-physics/mixins/horizon_physics/aired.rs
-mods/official/horizon-physics/mixins/horizon_physics/attack.rs
-mods/official/horizon-physics/mixins/horizon_physics/banner.rs
-mods/official/horizon-physics/mixins/horizon_physics/boats.rs
-mods/official/horizon-physics/mixins/horizon_physics/bobber.rs
-mods/official/horizon-physics/mixins/horizon_physics/builtin.rs
-mods/official/horizon-physics/mixins/horizon_physics/camera.rs
-mods/official/horizon-physics/mixins/horizon_physics/campfire_smoke.rs
-mods/official/horizon-physics/mixins/horizon_physics/cape.rs
-mods/official/horizon-physics/mixins/horizon_physics/catch.rs
-mods/official/horizon-physics/mixins/horizon_physics/collapse.rs
-mods/official/horizon-physics/mixins/horizon_physics/crack.rs
-mods/official/horizon-physics/mixins/horizon_physics/destroy.rs
-mods/official/horizon-physics/mixins/horizon_physics/eat.rs
-mods/official/horizon-physics/mixins/horizon_physics/explode.rs
-mods/official/horizon-physics/mixins/horizon_physics/fire_smoke.rs
-mods/official/horizon-physics/mixins/horizon_physics/fishing.rs
-mods/official/horizon-physics/mixins/horizon_physics/fluid.rs
-mods/official/horizon-physics/mixins/horizon_physics/fxc.rs
-mods/official/horizon-physics/mixins/horizon_physics/horizon-mixin.toml
-mods/official/horizon-physics/mixins/horizon_physics/items.rs
-mods/official/horizon-physics/mixins/horizon_physics/leads.rs
-mods/official/horizon-physics/mixins/horizon_physics/listed.rs
-mods/official/horizon-physics/mixins/horizon_physics/mob.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_drag.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_draw.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_key.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_layout.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_mouse.rs
-mods/official/horizon-physics/mixins/horizon_physics/options_scroll.rs
-mods/official/horizon-physics/mixins/horizon_physics/part.rs
-mods/official/horizon-physics/mixins/horizon_physics/player_model.rs
-mods/official/horizon-physics/mixins/horizon_physics/runtime.rs
-mods/official/horizon-physics/mixins/horizon_physics/settings.rs
-mods/official/horizon-physics/mixins/horizon_physics/settings_click.rs
-mods/official/horizon-physics/mixins/horizon_physics/setup.rs
-mods/official/horizon-physics/mixins/horizon_physics/setup_click.rs
-mods/official/horizon-physics/mixins/horizon_physics/setup_draw.rs
-mods/official/horizon-physics/mixins/horizon_physics/setup_load.rs
-mods/official/horizon-physics/mixins/horizon_physics/shader.rs
-mods/official/horizon-physics/mixins/horizon_physics/shader_pack.rs
-mods/official/horizon-physics/mixins/horizon_physics/sprint.rs
-mods/official/horizon-physics/mixins/horizon_physics/sway.rs
-mods/official/horizon-physics/mixins/horizon_physics/world.rs
-mods/official/punchy-moves/LICENSE
-mods/official/punchy-moves/NOTICE.md
-mods/official/punchy-moves/PORT.toml
-mods/official/punchy-moves/README.md
-mods/official/punchy-moves/horizon-native.json
-mods/official/punchy-moves/mixins/punchy_moves/rig.rs
-mods/official/punchy-moves/mixins/punchy_moves/runtime.rs
-mods/official/punchy-moves/mixins/punchy_moves/trails.rs
-mods/official/punchy-moves/original/livingmotion-1.2.0.hnmod
-tests/test_punchy_moves_android_wiring.py
-
-REMOVED FILES
-(none)
+Incremental: 1 added, 9 modified, 0 removed
+INCREMENTAL FILES (apply after previous animation-only cumulative delta)
+ADDED     mods/official/punchy-moves/NOTICE.txt
+MODIFIED  Cargo.lock
+MODIFIED  crates/horizon-client/Cargo.toml
+MODIFIED  crates/horizon-client/src/game/android_bundled.rs
+MODIFIED  mods/official/punchy-moves/PORT.toml
+MODIFIED  mods/official/punchy-moves/README.md
+MODIFIED  mods/official/punchy-moves/horizon-native.json
+MODIFIED  mods/official/punchy-moves/mixins/punchy_moves/rig.rs
+MODIFIED  mods/official/punchy-moves/mixins/punchy_moves/runtime.rs
+MODIFIED  tests/test_punchy_moves_android_wiring.py

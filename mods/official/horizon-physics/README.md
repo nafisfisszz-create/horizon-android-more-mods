@@ -8,7 +8,9 @@
 The complete supplied native source bundle is preserved under `mixins/horizon_physics/`.
 The solver, setup UI and renderer sway module are linked into the Android client and renderer.
 The native gameplay/render hooks, mod-list settings, title setup screen, options page, particle
-capture and terrain changes are wired into the Android static bundle. The shader hook was adapted
+capture and terrain changes are wired into the Android static bundle. The title-screen setup wizard is
+opt-in so it cannot cover the normal Minecraft title buttons on first launch; it remains available
+through Options > Physics Settings > Quick Setup or the mod settings entry. The shader hook was adapted
 to this fork's `CheckedStage`/Naga material builder. The reference `fxc.rs` hook remains preserved
 but is not wired: this fork has no matching `gfx::reuse::On::create_shader_module` entry point,
 and the Android material path builds Naga modules directly.

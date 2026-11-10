@@ -1,0 +1,4 @@
+REMOVE THESE OBSOLETE FILES WHEN APPLYING THIS PATCH OVER THE PREVIOUS BUTTONS-FIX CUMULATIVE DELTA:
+
+mods/official/punchy-moves/mixins/punchy_moves/trails.rs
+mods/official/punchy-moves/original/livingmotion-1.2.0.hnmod

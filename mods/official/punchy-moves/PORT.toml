@@ -1,9 +1,17 @@
 id = "punchy_moves"
 name = "Punchy Moves"
-version = "1.2.0"
-kind = "android_static_native"
-source_archive = "original/livingmotion-1.2.0.hnmod"
+version = "1.0.8"
+kind = "android_static_native_animation_only"
+source_reference = "Punchy Moves 1.0.8 resource-pack namespace and compatibility-profile format; external packs are read only when enabled"
 menu_entry = "Options > Mods"
 horizon_revision = "f319701e8c9ab657ff562250b3ba07b2d654e3bc"
 mixins_revision = "e8cd0aa38cffef49cb2e088ef716baa107148c02"
-android_status = "integrated_uncompiled"
+android_status = "external_resource_pack_compatibility"
+first_person_owner = "punchy"
+includes_face_or_pupil_features = false
+includes_elytra_trails = false
+includes_feature_settings_page = false
+
+resource_pack_namespace = "assets/punchy_moves"
+reads_external_pack_assets = true
+bundles_third_party_animation_assets = false

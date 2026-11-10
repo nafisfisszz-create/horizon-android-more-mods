@@ -1,8 +1,32 @@
 {
   "game": "26.3",
-  "horizon": "f319701e8c9ab657ff562250b3ba07b2d654e3bc",
   "id": "punchy_moves",
-  "mixins": "e8cd0aa38cffef49cb2e088ef716baa107148c02",
-  "schema": 1,
-  "version": "1.2.0"
+  "version": "1.0.8",
+  "source": "Punchy Moves 1.0.8 Fabric 26.3",
+  "scope": "third_person_resource_pack_compatibility",
+  "first_person_owner": "punchy",
+  "face_pupil_adjustments": false,
+  "elytra_trails": false,
+  "feature_settings_page": false,
+  "schema": 2,
+  "resource_pack_namespace": "assets/punchy_moves",
+  "reads_active_resource_pack_overlay": true,
+  "bundles_third_party_animation_assets": false,
+  "supported_third_person_bones": [
+    "root",
+    "waist",
+    "body",
+    "head",
+    "right_arm",
+    "left_arm",
+    "right_leg",
+    "left_leg"
+  ],
+  "excluded_tracks": [
+    "face",
+    "eye",
+    "pupil",
+    "first_person",
+    "item_attachment"
+  ]
 }

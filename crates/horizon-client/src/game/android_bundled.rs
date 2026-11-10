@@ -303,7 +303,6 @@ pub(super) fn native_settings(game: &mut Game<'_>, mod_id: &str, buttons: &mut V
         if mod_id == super::punchy::ID {
             super::punchy::settings(&*game, &mut *buttons);
         }
-        super::punchy_moves::settings_page(&mut *game, mod_id, &mut *buttons);
         armorhud_page(&mut *game, mod_id, &mut *buttons);
         jade_settings(&mut *game, mod_id, &mut *buttons);
         basic_hud_page(&mut *game, mod_id, &mut *buttons);
@@ -343,7 +342,6 @@ pub(super) fn native_settings_click(game: &mut Game<'_>, mod_id: &str, button: u
         if mod_id == super::punchy::ID {
             super::punchy::click(&*game, button);
         }
-        super::punchy_moves::settings_click(&mut *game, mod_id, button);
         armorhud_click(&mut *game, mod_id, button);
         jade_settings_click(&mut *game, mod_id, button);
         basic_hud_click(&mut *game, mod_id, button);
@@ -488,6 +486,7 @@ pub(super) fn native_command(game: &mut Game<'_>, command: &str, ran: &mut bool)
 pub(super) fn native_client_resources_reloaded(game: &mut Game<'_>) {
     jade_resources_reloaded(game);
     super::punchy::resources_reloaded();
+    super::punchy_moves::resources_reloaded();
 }
 
 #[cfg(target_os = "android")]

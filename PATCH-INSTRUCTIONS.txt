@@ -1,0 +1,36 @@
+PUNCHY MOVES EXTERNAL RESOURCE-PACK COMPATIBILITY PATCH
+
+This patch contains source changes only. It does NOT contain Fluid & Foolish,
+its animation JSON files, its pack icon, or any other third-party pack asset.
+
+CUMULATIVE DELTA:
+1. Start from horizon-android-more-mods-android.zip.
+2. Extract this ZIP at the project root and allow changed files to be replaced.
+3. Read CHANGED-FILES-MANIFEST.txt for the complete baseline delta.
+
+INCREMENTAL PATCH:
+1. Start from the source already updated with
+   horizon-android-punchy-moves-animation-only-cumulative-delta.zip.
+2. Extract the incremental ZIP at the project root and replace changed files.
+
+EXTERNAL RESOURCE PACK:
+1. Keep Fluid & Foolish 1.0.1 as a separate resource-pack ZIP.
+2. Put it in Minecraft's normal resourcepacks folder.
+3. Enable it through Options > Resource Packs, then reload resources.
+4. Punchy Moves reads JSON clips from assets/punchy_moves/animations and
+   compatibility profiles from assets/punchy_moves/compat in the active
+   resource overlay. On resource reload, it refreshes the clip catalog.
+
+SCOPE:
+- Third-person player bones only: root/waist/body, head, arms and legs.
+- Supports the mapped locomotion, idle, jump/landing, fall/free-fall,
+  surface/underwater swimming, elytra, climbing, crouch, attack and mining clips.
+- First-person hand/item animations remain owned by Punchy normal.
+- Face/eye/pupil tracks, item attachment tracks, camera features and Elytra
+  trails are excluded. The old Punchy Moves settings page remains removed.
+- If the external pack is disabled or absent, the native third-person rig
+  remains as fallback.
+
+The source changes have targeted Python regression coverage. Rust/Android
+compilation has not been verified in this environment because cargo/rustc are
+not installed; run the Android GitHub Actions build after applying the patch.

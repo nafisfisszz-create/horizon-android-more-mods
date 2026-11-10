@@ -128,8 +128,6 @@ mod punchy_geometry;
 #[path = "../../../mods/official/punchy-moves/mixins/punchy_moves/runtime.rs"]
 mod punchy_moves;
 #[cfg(target_os = "android")]
-#[path = "../../../mods/official/punchy-moves/mixins/punchy_moves/trails.rs"]
-mod punchy_moves_trails;
 #[cfg(target_os = "android")]
 #[path = "../../../mods/official/armorhud/mixins/armorhud/runtime.rs"]
 mod armorhud;
@@ -10686,7 +10684,6 @@ impl Game<'_> {
         #[cfg(target_os = "android")]
         {
             let trail_start = out.len();
-            punchy_moves::world(self, camera, alpha, &mut out);
             if out.len() > trail_start {
                 self.mark_translucent_entity(trail_start, "minecraft:player");
             }

@@ -82,6 +82,7 @@ arboard = { version = "3.6.1", default-features = false, features = ["wayland-da
 
 [target.'cfg(target_os = "android")'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
+punchy-engine = { path = "../../mods/official/punchy/mixins/punchy/engine" }
 
 [target.'cfg(windows)'.dependencies]
 # Use the registered URI handler without routing links through Explorer/cmd.

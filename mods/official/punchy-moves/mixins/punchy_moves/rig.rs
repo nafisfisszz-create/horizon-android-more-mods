@@ -12,80 +12,8 @@ use super::anim::{Poses, State};
 use crate::fast_hash::FxHashMap;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, RwLock};
-
-/// What the menu sets. Amounts are 0 (off) to 2 (double); 1 is the default.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Settings {
-    pub enabled: bool,
-    /// Animate other players too, not just you.
-    pub others: bool,
-    pub lean: f32,
-    pub bank: f32,
-    pub bounce: f32,
-    pub landing: f32,
-    pub arms: f32,
-    pub air: f32,
-    pub idle: f32,
-    /// Rolling into turns and spreading the arms with an elytra.
-    pub elytra: f32,
-    /// Rolling with the strokes and into turns when swimming.
-    pub swim: f32,
-    /// Eating, drinking, maps, compasses, lanterns held as you would hold them.
-    pub items: f32,
-    /// Reaching up hand over hand on ladders and vines.
-    pub climb: f32,
-    /// Swings that follow through with the body, the mining rhythm, the inspect pose.
-    pub actions: f32,
-    /// The head stays level while the body leans.
-    pub steady_head: bool,
-}
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            others: true,
-            lean: 1.0,
-            bank: 1.0,
-            bounce: 1.0,
-            landing: 1.0,
-            arms: 1.0,
-            air: 1.0,
-            idle: 1.0,
-            elytra: 1.0,
-            swim: 1.0,
-            items: 1.0,
-            climb: 1.0,
-            actions: 1.0,
-            steady_head: true,
-        }
-    }
-}
-
-static SETTINGS: Mutex<Settings> = Mutex::new(Settings {
-    enabled: true,
-    others: true,
-    lean: 1.0,
-    bank: 1.0,
-    bounce: 1.0,
-    landing: 1.0,
-    arms: 1.0,
-    air: 1.0,
-    idle: 1.0,
-    elytra: 1.0,
-    swim: 1.0,
-    items: 1.0,
-    climb: 1.0,
-    actions: 1.0,
-    steady_head: true,
-});
-
-pub fn settings() -> Settings {
-    *SETTINGS.lock().unwrap_or_else(|e| e.into_inner())
-}
-pub fn set_settings(s: Settings) {
-    *SETTINGS.lock().unwrap_or_else(|e| e.into_inner()) = s;
-}
+use std::sync::{Mutex, OnceLock, RwLock};
+use std::collections::BTreeMap;
 
 /// What a hand holds, as far as the animations care.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -193,6 +121,11 @@ struct Rig {
     was_airborne: bool,
     /// The fastest fall since leaving the ground, blocks a tick.
     fall: f32,
+    landing_t: f32,
+    jump_t: f32,
+    fall_t: f32,
+    crouch_t: f32,
+    was_crouching: bool,
     seen: u32,
 }
 
@@ -216,6 +149,7 @@ pub struct Out {
     pub steady_head: bool,
     pub glide: f32,
     pub swim: f32,
+    pub underwater: bool,
     pub roll: f32,
     pub dive: f32,
     /// Blocks a tick, any direction.
@@ -239,6 +173,14 @@ pub struct Out {
     pub inspect: f32,
     pub actions: f32,
     pub sprinting: f32,
+    pub crouching: bool,
+    pub forward: f32,
+    pub strafe: f32,
+    pub landing: f32,
+    pub jump_time: f32,
+    pub fall_time: f32,
+    pub fall_velocity: f32,
+    pub crouch_time: f32,
     pub glide_now: bool,
     pub main_left: bool,
 }
@@ -269,6 +211,7 @@ pub struct Input {
     /// Riding, sleeping, dead, spinning: no rig.
     pub busy: bool,
     pub in_water: bool,
+    pub underwater: bool,
     pub gliding: bool,
     pub swimming: bool,
     pub climbing: bool,
@@ -309,6 +252,7 @@ impl Input {
                 || m.death_time > 0
                 || m.extra.synced_pose == 2,
             in_water: m.fluids.in_water || m.fluids.in_lava,
+            underwater: m.fluids.eye_in_water,
             gliding: gliding || m.extra.fall_flying,
             swimming: swimming || m.extra.swim.amount(1.0) > 0.5,
             climbing: m.climbing && !m.on_ground,
@@ -329,7 +273,6 @@ impl Input {
 /// Steps every player's springs by `dt` seconds. `players` is this frame's
 /// players (you first); the ones not listed are forgotten after a second.
 pub fn update(players: &[Input], dt: f32) {
-    let set = settings();
     let dt = dt.clamp(0.0, 0.1);
     let mut guard = RIGS.lock().unwrap_or_else(|e| e.into_inner());
     let rigs = guard.get_or_insert_with(|| Rigs { rigs: FxHashMap::default(), frame: 0 });
@@ -337,14 +280,10 @@ pub fn update(players: &[Input], dt: f32) {
     let frame = rigs.frame;
     let mut out = OUT.write().unwrap_or_else(|e| e.into_inner());
     let out = out.get_or_insert_with(FxHashMap::default);
-    for (i, p) in players.iter().enumerate() {
-        if !set.enabled || (i > 0 && !set.others) {
-            out.remove(&p.id);
-            continue;
-        }
-        let r = rigs.rigs.entry(p.id).or_insert_with(|| Rig { inspect_t: -1.0, ..Rig::default() });
+    for p in players {
+        let r = rigs.rigs.entry(p.id).or_insert_with(|| Rig { inspect_t: -1.0, landing_t: -1.0, jump_t: -1.0, fall_t: -1.0, crouch_t: -1.0, ..Rig::default() });
         r.seen = frame;
-        let o = step(r, p, &set, dt);
+        let o = step(r, p, dt);
         out.insert(p.id, o);
     }
     rigs.rigs.retain(|_, r| frame.wrapping_sub(r.seen) < 120);
@@ -352,7 +291,7 @@ pub fn update(players: &[Input], dt: f32) {
     GENERATION.fetch_add(1, Ordering::Release);
 }
 
-fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
+fn step(r: &mut Rig, p: &Input, dt: f32) -> Out {
     let yaw = p.body_yaw.to_radians();
     let (sin, cos) = yaw.sin_cos();
     let [dx, dy, dz] = p.delta;
@@ -373,11 +312,11 @@ fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
     let surge = (fwd - r.fwd_slow).clamp(-0.3, 0.3);
     let sprint = if p.sprinting { 1.0 } else { 0.0 };
     let crouch = if p.crouching { 0.4 } else { 1.0 };
-    let lean = ((fwd * 0.55 + surge * 1.6 + sprint * fwd * 0.35) * set.lean * crouch).clamp(-0.3, 0.42);
+    let lean = ((fwd * 0.55 + surge * 1.6 + sprint * fwd * 0.35) * crouch).clamp(-0.3, 0.42);
     r.lean.step(lean, 90.0, 13.0, dt);
     // Bank into turns, more the faster you go; and toward a strafe.
     let moving = (horizontal / 0.2).min(1.0);
-    let bank = ((p.turn * 0.018 * moving + side * 0.6) * set.bank).clamp(-0.32, 0.32);
+    let bank = ((p.turn * 0.018 * moving + side * 0.6)).clamp(-0.32, 0.32);
     r.bank.step(bank, 70.0, 11.0, dt);
 
     // Gliding and swimming: the body lies along the way it goes (vanilla turns
@@ -393,10 +332,10 @@ fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
     let fast = (speed / 1.2).clamp(0.0, 1.0);
     let roll = if p.gliding {
         // An elytra goes where you look: roll by how fast that turns, more at speed.
-        (p.look_turn * 0.075 * (0.4 + 0.6 * fast) * set.elytra).clamp(-1.1, 1.1)
+        (p.look_turn * 0.075 * (0.4 + 0.6 * fast)).clamp(-1.1, 1.1)
     } else if p.swimming {
         let stroke = (r.clock * 5.2).sin() * 0.22 * (speed / 0.2).min(1.0);
-        ((p.turn * 0.04).clamp(-0.5, 0.5) + stroke) * set.swim
+        ((p.turn * 0.04).clamp(-0.5, 0.5) + stroke)
     } else {
         0.0
     };
@@ -440,6 +379,15 @@ fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
     // Mining: the swing keeps a rhythm; an inspect runs its course unless
     // something else starts.
     r.mining.step(if p.mining { 1.0 } else { 0.0 }, 120.0, 22.0, dt);
+    if p.crouching && !r.was_crouching {
+        r.crouch_t = 0.0;
+    }
+    if p.crouching && r.crouch_t >= 0.0 {
+        r.crouch_t += dt;
+    } else if !p.crouching {
+        r.crouch_t = -1.0;
+    }
+    r.was_crouching = p.crouching;
     if p.inspect && r.inspect_t < 0.0 {
         r.inspect_t = 0.0;
     } else if p.inspect {
@@ -458,20 +406,47 @@ fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
     r.air.step(if airborne { 1.0 } else { 0.0 }, 160.0, 24.0, dt);
     r.rise.step(if airborne && vy > 0.02 { 1.0 } else { 0.0 }, 160.0, 24.0, dt);
     if airborne {
+        if !r.was_airborne && vy > 0.02 {
+            r.jump_t = 0.0;
+        }
+        if vy < -0.02 {
+            if r.fall_t < 0.0 {
+                r.fall_t = 0.0;
+            }
+        } else {
+            r.fall_t = -1.0;
+        }
+        if r.jump_t >= 0.0 {
+            r.jump_t += dt;
+            if r.jump_t > 1.2 {
+                r.jump_t = -1.0;
+            }
+        }
         r.fall = r.fall.max(-vy);
         if !r.was_airborne && vy > 0.2 {
             // Take-off: a quick stretch.
-            r.squash.v -= 2.2 * set.landing;
+            r.squash.v -= 2.2;
         }
     } else if r.was_airborne && !p.gliding {
         // Landing: squash by how hard, then spring back with a little bounce.
         let hard = ((r.fall - 0.1) / 0.6).clamp(0.0, 1.0);
-        r.squash.v += (1.5 + 5.0 * hard) * set.landing;
+        r.squash.v += (1.5 + 5.0 * hard);
         r.fall = 0.0;
+        r.landing_t = 0.0;
+        r.jump_t = -1.0;
+        r.fall_t = -1.0;
+    }
+    if r.landing_t >= 0.0 {
+        r.landing_t += dt;
+        if r.landing_t > 1.2 {
+            r.landing_t = -1.0;
+        }
     }
     r.was_airborne = airborne || (p.gliding && !p.on_ground);
     if p.gliding {
         r.fall = r.fall.max(-vy * 0.5);
+        r.jump_t = -1.0;
+        r.fall_t = -1.0;
     }
     r.squash.step(0.0, 260.0, 9.0, dt);
     r.squash.x = r.squash.x.clamp(-0.12, 0.25);
@@ -482,34 +457,43 @@ fn step(r: &mut Rig, p: &Input, set: &Settings, dt: f32) -> Out {
         lean: r.lean.x,
         bank: r.bank.x,
         squash: r.squash.x,
-        air: r.air.x.clamp(0.0, 1.0) * set.air,
-        rise: r.rise.x.clamp(0.0, 1.0) * set.air,
+        air: r.air.x.clamp(0.0, 1.0),
+        rise: r.rise.x.clamp(0.0, 1.0),
         sprint,
-        bounce: set.bounce,
-        arms: set.arms,
-        idle: set.idle,
-        steady_head: set.steady_head,
+        bounce: 1.0,
+        arms: 1.0,
+        idle: 1.0,
+        steady_head: true,
         glide: r.glide.x.clamp(0.0, 1.0),
         swim: r.swim.x.clamp(0.0, 1.0),
+        underwater: p.underwater,
         roll: r.roll.x,
         dive: r.dive.x.clamp(0.0, 1.0),
         speed,
         clock: r.clock,
-        eat: r.eat.x.clamp(0.0, 1.0) * set.items,
+        eat: r.eat.x.clamp(0.0, 1.0),
         drink: p.using == Some(Held::Drink),
         eat_left: p.using_left,
-        map: r.map.x.clamp(0.0, 1.0) * set.items,
-        dial: r.dial.x.clamp(0.0, 1.0) * set.items,
+        map: r.map.x.clamp(0.0, 1.0),
+        dial: r.dial.x.clamp(0.0, 1.0),
         dial_left: if p.main == Held::Dial { p.main_left } else { !p.main_left },
-        light: r.light.x.clamp(0.0, 1.0) * set.items,
+        light: r.light.x.clamp(0.0, 1.0),
         light_left: if p.main == Held::Light { p.main_left } else { !p.main_left },
-        climb: r.climb.x.clamp(0.0, 1.0) * set.climb,
+        climb: r.climb.x.clamp(0.0, 1.0),
         climbed: r.climbed,
         twirl,
-        mining: r.mining.x.clamp(0.0, 1.0) * set.actions,
-        inspect: if set.actions > 0.0 { r.inspect_t } else { -1.0 },
-        actions: set.actions,
+        mining: r.mining.x.clamp(0.0, 1.0),
+        inspect: r.inspect_t,
+        actions: 1.0,
         sprinting: sprint,
+        crouching: p.crouching,
+        forward: fwd,
+        strafe: side,
+        landing: r.landing_t,
+        jump_time: r.jump_t,
+        fall_time: r.fall_t,
+        fall_velocity: (-vy).max(0.0),
+        crouch_time: r.crouch_t,
         glide_now: p.gliding,
         main_left: p.main_left,
     }
@@ -562,6 +546,185 @@ fn out_of(id: u32) -> Option<Out> {
 
 // ---------------------------------------------------------------- the model hooks
 
+#[derive(Clone, Debug, Default)]
+pub struct PackBindings {
+    pub idle: Option<String>,
+    pub walk: Option<String>,
+    pub walk_add: Option<String>,
+    pub walk_backward: Option<String>,
+    pub walk_backward_reverse: bool,
+    pub walk_left: Option<String>,
+    pub walk_right: Option<String>,
+    pub sprint_forward: Option<String>,
+    pub sprint_add: Option<String>,
+    pub fall: Option<String>,
+    pub free_fall: Option<String>,
+    pub jump_landing: Option<String>,
+    pub swim: Option<String>,
+    pub swim_underwater: Option<String>,
+    pub elytra: Option<String>,
+    pub elytra_fast: Option<String>,
+    pub climb: Option<String>,
+    pub jump: Option<String>,
+    pub crouch: Option<String>,
+    pub attack: Option<String>,
+    pub attack_left: Option<String>,
+    pub mining: Option<String>,
+    pub mining_left: Option<String>,
+}
+
+#[derive(Default)]
+struct ResourcePackAnimations {
+    clips: BTreeMap<String, punchy_engine::Clip>,
+    bindings: PackBindings,
+}
+
+static RESOURCE_PACK_ANIMATIONS: OnceLock<RwLock<Option<ResourcePackAnimations>>> = OnceLock::new();
+
+fn resource_pack_store() -> &'static RwLock<Option<ResourcePackAnimations>> {
+    RESOURCE_PACK_ANIMATIONS.get_or_init(|| RwLock::new(None))
+}
+
+pub fn set_resource_pack_animations(
+    clips: BTreeMap<String, punchy_engine::Clip>,
+    bindings: PackBindings,
+) {
+    let value = (!clips.is_empty()).then_some(ResourcePackAnimations { clips, bindings });
+    *resource_pack_store().write().unwrap_or_else(|error| error.into_inner()) = value;
+}
+
+pub fn clear_resource_pack_animations() {
+    *resource_pack_store().write().unwrap_or_else(|error| error.into_inner()) = None;
+}
+
+fn selected_pack_clips<'a>(
+    set: &'a ResourcePackAnimations,
+    s: &State,
+    o: &Out,
+) -> [(Option<&'a str>, f32); 2] {
+    let seconds = s.age.max(0.0) / 20.0;
+    let movement_seconds = s.pos.max(0.0) * 0.6662 / std::f32::consts::TAU;
+    if o.glide > 0.35 {
+        let name = if o.speed > 0.9 { set.bindings.elytra_fast.as_deref().or(set.bindings.elytra.as_deref()) } else { set.bindings.elytra.as_deref() };
+        [(name, o.clock.max(0.0)), (None, 0.0)]
+    } else if o.swim > 0.35 {
+        let name = if o.underwater { set.bindings.swim_underwater.as_deref().or(set.bindings.swim.as_deref()) } else { set.bindings.swim.as_deref().or(set.bindings.swim_underwater.as_deref()) };
+        [(name, o.clock.max(0.0)), (None, 0.0)]
+    } else if o.climb > 0.25 {
+        [(set.bindings.climb.as_deref(), seconds), (None, 0.0)]
+    } else if o.landing >= 0.0 {
+        [(set.bindings.jump_landing.as_deref(), o.landing), (None, 0.0)]
+    } else if o.air > 0.35 {
+        if o.rise > 0.35 && o.jump_time >= 0.0 {
+            [(set.bindings.jump.as_deref(), o.jump_time), (None, 0.0)]
+        } else {
+            let name = if o.fall_velocity > 0.72 {
+                set.bindings.free_fall.as_deref().or(set.bindings.fall.as_deref())
+            } else {
+                set.bindings.fall.as_deref().or(set.bindings.free_fall.as_deref())
+            };
+            [(name, o.fall_time.max(0.0)), (None, 0.0)]
+        }
+    } else if o.crouching {
+        [(set.bindings.crouch.as_deref(), o.crouch_time.max(0.0)), (None, 0.0)]
+    } else if o.mining > 0.3 {
+        let name = if o.main_left { set.bindings.mining_left.as_deref().or(set.bindings.mining.as_deref()) } else { set.bindings.mining.as_deref() };
+        [(name, seconds), (None, 0.0)]
+    } else if s.swing > 0.08 {
+        let name = if o.main_left { set.bindings.attack_left.as_deref().or(set.bindings.attack.as_deref()) } else { set.bindings.attack.as_deref() };
+        [(name, s.swing.max(0.0)), (None, 0.0)]
+    } else if s.speed > 0.035 {
+        let directional = if o.forward.abs() >= o.strafe.abs() && o.forward < -0.04 {
+            set.bindings.walk_backward.as_deref()
+        } else if o.strafe.abs() > o.forward.abs() && o.strafe > 0.04 {
+            set.bindings.walk_left.as_deref()
+        } else if o.strafe.abs() > o.forward.abs() && o.strafe < -0.04 {
+            set.bindings.walk_right.as_deref()
+        } else if o.sprinting > 0.5 {
+            set.bindings.sprint_forward.as_deref()
+        } else {
+            None
+        };
+        let primary = directional.or(set.bindings.walk.as_deref());
+        let primary_time = if o.forward.abs() >= o.strafe.abs() && o.forward < -0.04 && set.bindings.walk_backward_reverse {
+            -movement_seconds
+        } else {
+            movement_seconds
+        };
+        let overlay = if o.sprinting > 0.5 {
+            set.bindings.sprint_add.as_deref().or(set.bindings.walk_add.as_deref())
+        } else {
+            set.bindings.walk_add.as_deref()
+        };
+        [(primary, primary_time), (overlay, movement_seconds)]
+    } else {
+        [(set.bindings.idle.as_deref(), seconds), (None, 0.0)]
+    }
+}
+
+fn supported_part(bone: &str) -> Option<&'static str> {
+    match bone {
+        "root" | "waist" | "body" => Some("body"),
+        "head" => Some("head"),
+        "right_arm" => Some("right_arm"),
+        "left_arm" => Some("left_arm"),
+        "right_leg" => Some("right_leg"),
+        "left_leg" => Some("left_leg"),
+        _ => None,
+    }
+}
+
+fn apply_resource_clip(p: &mut Poses, clip: &punchy_engine::Clip, time: f32, expression_time: f32) -> bool {
+    let mut applied = false;
+    let time = clip.local_time(time);
+    let body_bone = ["body", "waist", "root"]
+        .into_iter()
+        .find(|bone| clip.tracks.contains_key(*bone));
+    for bone in clip.tracks.keys() {
+        let Some(part) = supported_part(bone) else { continue };
+        if part == "body" && body_bone != Some(bone.as_str()) { continue; }
+        if !p.has(part) { continue; }
+        let sample = clip.sample(bone, time, expression_time);
+        if !sample.position.is_finite() || !sample.euler.is_finite() || !sample.scale.is_finite() {
+            continue;
+        }
+        let target = p.get(part);
+        target[0] += sample.position.x;
+        target[1] += sample.position.y;
+        target[2] += sample.position.z;
+        let radians = sample.euler * (std::f32::consts::PI / 180.0);
+        target[3] += radians.x;
+        target[4] += radians.y;
+        target[5] += radians.z;
+        target[6] *= sample.scale.x;
+        target[7] *= sample.scale.y;
+        target[8] *= sample.scale.z;
+        applied = true;
+    }
+    applied
+}
+
+fn selected_pack_has_body_track(set: &ResourcePackAnimations, s: &State, o: &Out) -> bool {
+    selected_pack_clips(set, s, o).iter().any(|(name, _)| {
+        name.and_then(|name| set.clips.get(name)).is_some_and(|clip| {
+            ["body", "waist", "root"].iter().any(|bone| clip.tracks.contains_key(*bone))
+        })
+    })
+}
+
+fn apply_resource_pack_animations(p: &mut Poses, s: &State, o: &Out) -> bool {
+    let store = resource_pack_store().read().unwrap_or_else(|error| error.into_inner());
+    let Some(set) = store.as_ref() else { return false };
+    let selections = selected_pack_clips(set, s, o);
+    let expression_time = s.age.max(0.0) / 20.0;
+    let mut applied = false;
+    for (name, time) in selections {
+        let Some(clip) = name.and_then(|name| set.clips.get(name)) else { continue };
+        applied |= apply_resource_clip(p, clip, time, expression_time);
+    }
+    applied
+}
+
 thread_local! {
     /// The player `anim::setup` is posing on this thread, for `pose`.
     static POSING: Cell<Option<(u32, State)>> = const { Cell::new(None) };
@@ -577,7 +740,9 @@ pub fn pose_start(m: &Mob, s: &State) {
 pub fn pose(p: &mut Poses) {
     let Some((id, s)) = POSING.with(|c| c.take()) else { return };
     let Some(o) = out_of(id) else { return };
-    apply(p, &s, &o);
+    if !apply_resource_pack_animations(p, &s, &o) {
+        apply(p, &s, &o);
+    }
 }
 
 /// The part angles `o` adds to a pose (radians, `[x, y, z, xRot, yRot, zRot, ...]`).
@@ -738,7 +903,14 @@ pub fn body(m: &Mob, alpha: f32, value: glam::Mat4) -> glam::Mat4 {
         return value;
     }
     let Some(o) = out_of(m.id) else { return value };
-    value * matrix(&o, super::anim::state(m, alpha).pos, {
+    let state = super::anim::state(m, alpha);
+    {
+        let store = resource_pack_store().read().unwrap_or_else(|error| error.into_inner());
+        if store.as_ref().is_some_and(|set| selected_pack_has_body_track(set, &state, &o)) {
+            return value;
+        }
+    }
+    value * matrix(&o, state.pos, {
         let speed = m.previous_limb_speed + (m.limb_speed - m.previous_limb_speed) * alpha;
         speed.clamp(0.0, 1.0)
     })

@@ -808,6 +808,10 @@ pub fn setting_click(i: usize) {
         }
         clear_all
     };
+    if i == 19 {
+        SETUP_REQUESTED.store(true, Ordering::Relaxed);
+        with_setup(|s| s.page = 0);
+    }
     if clear_all {
         clear();
     }
@@ -5636,9 +5640,12 @@ pub struct Setup {
 }
 
 static SETUP: Mutex<Option<Setup>> = Mutex::new(None);
+static SETUP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
-/// Whether the quick setup shows (the settings are read and it was neither done nor skipped).
 pub fn setup_visible() -> bool {
+    if !SETUP_REQUESTED.load(Ordering::Relaxed) {
+        return false;
+    }
     let g = SETTINGS.lock().unwrap_or_else(|e| e.into_inner());
     matches!(g.as_ref(), Some((s, Some(_))) if !s.setup)
 }
@@ -5672,6 +5679,7 @@ pub fn setup_pick(pick: Option<usize>) {
 /// Ends the quick setup (Skip Setup, or Continue on its last page).
 pub fn setup_finish() {
     update_settings(|st| st.setup = true);
+    SETUP_REQUESTED.store(false, Ordering::Relaxed);
     with_setup(|s| s.page = 0);
 }
 

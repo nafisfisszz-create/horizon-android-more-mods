@@ -1,9 +1,7 @@
-# Credits
+# Credits and scope
 
-- **Living Motion**: original code by bartekchomik26-dotcom, MIT (`LICENSE`).
-- **Elytra trails** (`trails.rs`): ported from [Elytra Contrails](https://github.com/dbrighthd/elytratrails)
-  by dbrighthd, MPL-2.0 (full text in `LICENSE`). The trail colours of the flags are the stripe colours of
-  its trail textures; the presets follow its `config_presets`. That file stays under MPL-2.0; its source is
-  in this bundle and in the mod's repository.
-- No code, data or assets from Punchy, Punchy Moves or Not Enough Animations are included: the animations
-  here are written from scratch.
+- The retained native procedural player-animation rig preserves the MIT attribution from the previous Living Motion-based Android implementation; see `LICENSE`.
+- The supplied Punchy Moves 1.0.8 Fabric source archive was used as a reference for the animation-only scope and control ownership. Its Java source is not copied into this native port.
+- The nested `punchy-expressions` source component is excluded. It does not contribute face, eye, iris, pupil, or expression features to this build.
+- Elytra trail geometry from the previous port was removed; Punchy Moves is animation-only.
+- First-person hand/item animation is handled by the separate Punchy mod.

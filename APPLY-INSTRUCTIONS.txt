@@ -1,0 +1,7 @@
+CUMULATIVE PATCH APPLICATION
+
+1. Start from the original horizon-android-more-mods-android source ZIP.
+2. Extract this archive into the project root and overwrite matching files.
+3. No files need to be deleted from the original baseline.
+4. DELETE-FILES-FOR-UPGRADE.txt is only for cleaning up if you are applying this archive over the earlier buttons-fix cumulative delta instead of a clean baseline.
+5. The project uses the existing Punchy first-person renderer; Punchy Moves remains third-person animation only.

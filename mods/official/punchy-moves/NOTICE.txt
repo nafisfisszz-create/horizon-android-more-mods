@@ -1,0 +1,1 @@
+Punchy Moves compatibility reads external resource-pack files from the active Minecraft resource overlay. No Fluid & Foolish or other third-party animation assets are bundled, copied, or redistributed by this source.
