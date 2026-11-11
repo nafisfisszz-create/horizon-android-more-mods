@@ -218,6 +218,7 @@ impl fmt::Display for Capability {
             Capability::Players => "players",
             Capability::World => "world",
             Capability::Recipes => "recipes",
+            Capability::Sound => "sound",
         };
         f.write_str(name)
     }
