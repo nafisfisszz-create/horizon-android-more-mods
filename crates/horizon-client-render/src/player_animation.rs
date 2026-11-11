@@ -541,7 +541,7 @@ pub const MAX_EXPRESSION_BYTES: usize = 16 * 1024;
 /// Replace the small, explicit NBT predicate subset used by Fresh Animations.
 /// The player renderer supplies these booleans from its held-item and pose state;
 /// unsupported NBT queries evaluate false rather than breaking the whole expression.
-fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> String {
+fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> Result<String, String> {
     let mut output = String::with_capacity(source.len());
     let mut cursor = 0;
     while let Some(relative) = source[cursor..].find("nbt(") {
@@ -550,7 +550,7 @@ fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> String {
         let args_start = start + 4;
         let Some(close_relative) = source[args_start..].find(')') else {
             output.push_str(&source[start..]);
-            return output;
+            return Err("unterminated CEM nbt predicate".into());
         };
         let close = args_start + close_relative;
         let args: String = source[args_start..close]
@@ -565,23 +565,22 @@ fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> String {
             "abilities.flying,0" => "cem.nbt.not_flying",
             _ => "",
         };
-        let value = if key.is_empty() {
-            0.0
-        } else {
-            context.variables.get(key).copied().unwrap_or(0.0)
-        };
+        if key.is_empty() {
+            return Err(format!("unsupported CEM nbt predicate: {args}"));
+        }
+        let value = context.variables.get(key).copied().unwrap_or(0.0);
         output.push(if value != 0.0 { '1' } else { '0' });
         cursor = close + 1;
     }
     output.push_str(&source[cursor..]);
-    output
+    Ok(output)
 }
 
 pub fn evaluate_expression(source: &str, context: &ExpressionContext) -> Result<f64, String> {
     if source.len() > MAX_EXPRESSION_BYTES {
         return Err(format!("expression exceeds {MAX_EXPRESSION_BYTES} bytes"));
     }
-    let expanded = expand_nbt_predicates(source, context);
+    let expanded = expand_nbt_predicates(source, context)?;
     let tokens = tokenize_expression(&expanded)?;
     let mut parser = ExpressionParser { tokens, cursor: 0, context };
     let value = parser.parse_expression(0)?;
