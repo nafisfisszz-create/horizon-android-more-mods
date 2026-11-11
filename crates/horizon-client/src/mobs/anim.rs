@@ -358,9 +358,21 @@ impl Poses {
             {
                 for (name, pose) in evaluated {
                     if is_named_part {
-                        current.insert(name, pose.pose);
+                        current.insert(name.clone(), pose.pose);
                     } else {
-                        hierarchical.insert(name, pose.pose);
+                        hierarchical.insert(name.clone(), pose.pose);
+                    }
+                    // Publish each newly evaluated channel immediately. Later CEM
+                    // expressions in the same ordered animation list may reference it.
+                    for (channel, index) in [
+                        ("tx", 0), ("ty", 1), ("tz", 2),
+                        ("rx", 3), ("ry", 4), ("rz", 5),
+                        ("sx", 6), ("sy", 7), ("sz", 8),
+                    ] {
+                        expression_context.variables.insert(
+                            format!("{name}.{channel}"),
+                            f64::from(pose.pose[index]),
+                        );
                     }
                     applied += 1;
                 }
