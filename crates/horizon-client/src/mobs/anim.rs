@@ -249,7 +249,8 @@ impl Poses {
         resource: &horizon_client_render::player_animation::CemResource,
         context: &horizon_client_render::player_animation::ExpressionContext,
     ) -> Result<(), String> {
-        self.apply_cem_bindings(&resource.animation_bindings, context);
+        let mut context = context.clone();
+        self.apply_cem_bindings(&resource.animation_bindings, &mut context);
         Ok(())
     }
 
@@ -259,14 +260,14 @@ impl Poses {
     pub fn apply_cem_bindings(
         &mut self,
         bindings: &[(String, String)],
-        context: &horizon_client_render::player_animation::ExpressionContext,
+        context: &mut horizon_client_render::player_animation::ExpressionContext,
     ) -> usize {
         use std::collections::BTreeMap;
 
         let mut current: BTreeMap<String, [f32; 9]> =
             self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
         let mut hierarchical = self.hierarchical_poses.clone();
-        let mut expression_context = context.clone();
+        let expression_context = context;
         let mut applied = 0;
         for (target, expression) in bindings {
             if target.starts_with("var.") || target.starts_with("varb.") {
@@ -401,10 +402,10 @@ mod cem_pose_integration_tests {
             }],
         };
         let mut poses = Poses::new(&model);
-        let context = ExpressionContext::default();
+        let mut context = ExpressionContext::default();
         let bindings = vec![("head:hand.rx".to_owned(), "0.75".to_owned())];
 
-        assert_eq!(poses.apply_cem_bindings(&bindings, &context), 1);
+        assert_eq!(poses.apply_cem_bindings(&bindings, &mut context), 1);
         assert_eq!(poses.pose(&model.children[0].children[0])[3], 0.75);
     }
 
@@ -414,7 +415,7 @@ mod cem_pose_integration_tests {
             map: [("head".to_owned(), [0.0; 9])].into_iter().collect(),
             ..Default::default()
         };
-        let context = ExpressionContext {
+        let mut context = ExpressionContext {
             variables: BTreeMap::from([("limb_swing".to_owned(), 1.5)]),
         };
         let bindings = vec![
@@ -422,7 +423,7 @@ mod cem_pose_integration_tests {
             ("head.rx".to_owned(), "var.head_motion".to_owned()),
         ];
 
-        assert_eq!(poses.apply_cem_bindings(&bindings, &context), 2);
+        assert_eq!(poses.apply_cem_bindings(&bindings, &mut context), 2);
         assert_eq!(poses.map["head"][3], 3.0);
     }
 }
