@@ -48,6 +48,8 @@ pub struct MobData {
     pub animations: HashMap<String, Animation>,
     /// Player CEM resources from the active resource-pack overlay, if present.
     pub player_cem: Option<horizon_client_render::player_animation::PlayerModelResources>,
+    /// Fully baked normal/slim player models with CEM geometry attached; built once per resource load.
+    pub player_cem_models: std::sync::OnceLock<(super::Part, super::Part)>,
     /// Replaced when the resource packs change (the rest of `MobData` never is).
     pub villager_hats: std::sync::RwLock<super::villager_hats::VillagerHats>,
     /// Biome tags (spawns_warm_variant_farm_animals, is_ocean...) by tag id.
@@ -89,9 +91,11 @@ impl MobData {
             match horizon_client_render::player_animation::load_player_models(&cem_root) {
                 Ok(models) => {
                     log::info!(
-                        "Horizon: loaded player CEM resources from {} ({} JPM modules)",
+                        "Horizon: loaded player CEM resources from {} ({} JPM modules, {} normal / {} slim animation bindings)",
                         cem_root.display(),
-                        models.modules.len()
+                        models.modules.len(),
+                        models.animation_bindings(false).len(),
+                        models.animation_bindings(true).len()
                     );
                     data.player_cem = Some(models);
                 }
@@ -169,6 +173,7 @@ impl MobData {
             heightmaps,
             animations,
             player_cem: None,
+            player_cem_models: Default::default(),
             villager_hats: Default::default(),
             biome_tags: HashMap::new(),
             entity_tags: HashMap::new(),
@@ -227,6 +232,7 @@ impl MobData {
             heightmaps: HashMap::new(),
             animations: HashMap::new(),
             player_cem: None,
+            player_cem_models: Default::default(),
             villager_hats: Default::default(),
             biome_tags: HashMap::new(),
             entity_tags: HashMap::new(),
