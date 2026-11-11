@@ -199,6 +199,52 @@ fn climate(m: &Mob) -> &'static str {
 fn avatar(m: &Mob) -> bool {
     matches!(&*m.kind.id, "minecraft:player" | "minecraft:mannequin")
 }
+
+/// The player-facing variables used by the common OptiFine CEM expressions.
+/// Values not represented by Horizon's current player render state are left
+/// undefined; expressions depending on them are skipped by the pose evaluator.
+fn player_cem_context(
+    m: &Mob,
+    s: &anim::State,
+) -> horizon_client_render::player_animation::ExpressionContext {
+    use std::collections::BTreeMap;
+
+    let flag = |value: bool| if value { 1.0 } else { 0.0 };
+    let mut variables = BTreeMap::new();
+    for (name, value) in [
+        ("limb_swing", f64::from(s.pos)),
+        ("limb_speed", f64::from(s.speed)),
+        ("age", f64::from(s.age)),
+        ("time", f64::from(s.age)),
+        ("head_yaw", f64::from(s.y_rot)),
+        ("head_pitch", f64::from(s.x_rot)),
+        ("swing_progress", f64::from(s.swing)),
+        ("is_sneaking", flag(m.extra.crouching)),
+        ("is_crouching", flag(m.extra.crouching)),
+        ("is_sprinting", flag(m.extra.sprinting)),
+        ("is_riding", flag(m.extra.passenger)),
+        ("is_child", flag(m.is_baby())),
+        ("is_on_ground", flag(m.on_ground)),
+        ("is_fall_flying", flag(m.extra.fall_flying)),
+        ("is_using_item", flag(m.extra.using_item > 0)),
+        ("is_blocking", flag(m.extra.blocking)),
+        (
+            "is_holding_item",
+            flag(m.extra.main_hand.is_some() || m.extra.off_hand.is_some()),
+        ),
+        ("is_left_handed", flag(m.main_arm_left())),
+        ("is_right_handed", flag(!m.main_arm_left())),
+        ("is_invisible", flag(m.invisible)),
+        ("is_spectator", flag(m.extra.spectator)),
+        (
+            "is_swimming",
+            flag(m.extra.swim.amount(s.partial) > 0.0),
+        ),
+    ] {
+        variables.insert(name.to_owned(), value);
+    }
+    horizon_client_render::player_animation::ExpressionContext { variables }
+}
 /// The model layer key and texture for the mob's body.
 pub fn body(m: &Mob) -> (String, String) {
     use Species as S;
@@ -1691,6 +1737,12 @@ fn render_visible(
         .unwrap_or_else(|| m.kind.model.clone());
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
+    if avatar(m)
+        && let Some(player_cem) = &data.player_cem
+    {
+        let context = player_cem_context(m, &s);
+        poses.apply_cem_bindings(player_cem.animation_bindings(m.slim), &context);
+    }
     let draw_body = |out: &mut Vec<Vertex>| {
         // A player or mannequin whose skin has no atlas sprite (an evicted or
         // never stored download) draws with its default skin, not invisibly.
@@ -2419,6 +2471,7 @@ mod tests {
             placements: Default::default(),
             heightmaps: Default::default(),
             animations: Default::default(),
+            player_cem: None,
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -2508,6 +2561,7 @@ mod tests {
             placements: Default::default(),
             heightmaps: Default::default(),
             animations: Default::default(),
+            player_cem: None,
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -2561,6 +2615,7 @@ mod tests {
             placements: Default::default(),
             heightmaps: Default::default(),
             animations: Default::default(),
+            player_cem: None,
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -2670,6 +2725,7 @@ mod tests {
             placements: Default::default(),
             heightmaps: Default::default(),
             animations: Default::default(),
+            player_cem: None,
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
