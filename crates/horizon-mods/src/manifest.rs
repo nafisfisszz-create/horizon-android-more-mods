@@ -559,7 +559,7 @@ capabilities = ["game-read", "hud"]
         ))
         .unwrap();
         let sound = Manifest::parse(&format!(
-            "{base}capabilities = [\"sound\"]\\n"
+            "{base}capabilities = [\"sound\"]\n"
         )).unwrap_err();
         assert!(sound.contains("experimental = [\"sound\"]"), "{sound}");
         let sound = Manifest::parse(&format!(
