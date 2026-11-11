@@ -252,7 +252,7 @@ fn tokenize_expression(source: &str) -> Result<Vec<ExprToken>, String> {
                 if i < chars.len() && (chars[i] == '+' || chars[i] == '-') { i += 1; }
                 while i < chars.len() && chars[i].is_ascii_digit() { i += 1; }
             }
-            let text: String = chars[start..i].iter().collect();
+            let text: String = chars[start..i].iter().copied().collect();
             let value = text.parse::<f64>().map_err(|_| format!("invalid number: {text}"))?;
             out.push(ExprToken::Number(value));
             continue;
@@ -261,7 +261,7 @@ fn tokenize_expression(source: &str) -> Result<Vec<ExprToken>, String> {
             let start = i;
             i += 1;
             while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_' || chars[i] == '.') { i += 1; }
-            out.push(ExprToken::Ident(chars[start..i].iter().collect()));
+            out.push(ExprToken::Ident(chars[start..i].iter().copied().collect()));
             continue;
         }
         match c {
@@ -271,7 +271,7 @@ fn tokenize_expression(source: &str) -> Result<Vec<ExprToken>, String> {
             '?' => { out.push(ExprToken::Question); i += 1; }
             ':' => { out.push(ExprToken::Colon); i += 1; }
             _ => {
-                let two: String = chars[i..(i + 2).min(chars.len())].iter().collect();
+                let two: String = chars[i..(i + 2).min(chars.len())].iter().copied().collect();
                 if ["&&", "||", "==", "!=", "<=", ">="].contains(&two.as_str()) {
                     out.push(ExprToken::Op(two)); i += 2;
                 } else if "+-*/%^!<>".contains(c) {
