@@ -448,3 +448,97 @@ mod expression_tests {
         assert!(evaluate_expression("nbt('foo')", &c).is_err());
     }
 }
+
+
+/// One evaluated CEM transform for a named model part.
+/// Values use Horizon's Part pose layout: translation in model pixels,
+/// rotations in radians, and scale as multipliers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CemPartPose {
+    pub pose: [f32; 9],
+    pub assigned: [bool; 9],
+}
+
+/// Evaluate expression bindings whose keys use part.rx, part.ty, etc.
+/// Supported suffixes are rx/ry/rz, tx/ty/tz and sx/sy/sz. The caller supplies
+/// the part's base pose so fields not animated by the pack remain unchanged.
+pub fn evaluate_pose_expressions(
+    bindings: &std::collections::BTreeMap<String, String>,
+    base_poses: &std::collections::BTreeMap<String, [f32; 9]>,
+    context: &ExpressionContext,
+) -> Result<std::collections::BTreeMap<String, CemPartPose>, String> {
+    use std::collections::BTreeMap;
+    let mut result = BTreeMap::new();
+    for (binding, expression) in bindings {
+        if binding.len() > 256 {
+            return Err("CEM pose binding name exceeds 256 bytes".into());
+        }
+        let (part, channel) = binding.rsplit_once('.')
+            .ok_or_else(|| format!("invalid CEM pose binding: {binding}"))?;
+        if part.is_empty() || part.contains('/') || part.contains('\\\\') {
+            return Err(format!("invalid CEM part name in binding: {binding}"));
+        }
+        let index = match channel {
+            "tx" => 0, "ty" => 1, "tz" => 2,
+            "rx" => 3, "ry" => 4, "rz" => 5,
+            "sx" => 6, "sy" => 7, "sz" => 8,
+            _ => return Err(format!("unsupported CEM pose channel: {channel}")),
+        };
+        let base = *base_poses.get(part)
+            .ok_or_else(|| format!("CEM animation references missing part: {part}"))?;
+        let value = evaluate_expression(expression, context)?;
+        if value.abs() > 1_000_000.0 {
+            return Err(format!("CEM pose value out of safe range: {binding}"));
+        }
+        let entry = result.entry(part.to_owned()).or_insert_with(|| CemPartPose {
+            pose: base,
+            assigned: [false; 9],
+        });
+        entry.pose[index] = value as f32;
+        entry.assigned[index] = true;
+    }
+    Ok(result)
+}
+
+
+#[cfg(test)]
+mod pose_binding_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn applies_named_pose_channels_without_overwriting_base_pose() {
+        let bindings = BTreeMap::from([
+            ("head.rx".into(), "sin(age)".into()),
+            ("head.ty".into(), "3 + limb_swing".into()),
+            ("head.sx".into(), "1.2".into()),
+        ]);
+        let base = BTreeMap::from([("head".into(), [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])]);
+        let ctx = ExpressionContext { variables: BTreeMap::from([
+            ("age".into(), 0.0), ("limb_swing".into(), 2.0)
+        ]) };
+        let out = evaluate_pose_expressions(&bindings, &base, &ctx).unwrap();
+        let head = out.get("head").unwrap();
+        assert_eq!(head.pose[0], 1.0);
+        assert_eq!(head.pose[1], 5.0);
+        assert_eq!(head.pose[3], 0.0);
+        assert_eq!(head.pose[6], 1.2);
+        assert!(head.assigned[3] && head.assigned[1] && head.assigned[6]);
+        assert!(!head.assigned[0]);
+    }
+
+    #[test]
+    fn rejects_missing_parts_unknown_channels_and_extreme_values() {
+        let base = BTreeMap::from([("head".into(), [0.0; 9])]);
+        let ctx = ExpressionContext::default();
+        assert!(evaluate_pose_expressions(&BTreeMap::from([
+            ("body.rx".into(), "1".into())
+        ]), &base, &ctx).is_err());
+        assert!(evaluate_pose_expressions(&BTreeMap::from([
+            ("head.visible".into(), "1".into())
+        ]), &base, &ctx).is_err());
+        assert!(evaluate_pose_expressions(&BTreeMap::from([
+            ("head.tx".into(), "1000001".into())
+        ]), &base, &ctx).is_err());
+    }
+}
