@@ -103,9 +103,11 @@ pub enum Capability {
     /// The recipes and items the game knows, for recipe viewers
     /// (interface `recipes`).
     Recipes,
+    /// Play registered sound events on the local client.
+    Sound,
 }
 impl Capability {
-    pub const ALL: [Capability; 12] = [
+    pub const ALL: [Capability; 13] = [
         Capability::GameRead,
         Capability::Chat,
         Capability::Hud,
@@ -118,6 +120,7 @@ impl Capability {
         Capability::Players,
         Capability::World,
         Capability::Recipes,
+        Capability::Sound,
     ];
     /// Whether a server mod may have it: the others act on a local player.
     pub fn on_server(self) -> bool {
@@ -141,6 +144,7 @@ impl Capability {
             Capability::Players => "players",
             Capability::World => "world",
             Capability::Recipes => "recipes",
+            Capability::Sound => "sound",
         }
     }
     /// May change in any release: a mod uses it only with
@@ -148,7 +152,7 @@ impl Capability {
     pub fn is_experimental(self) -> bool {
         matches!(
             self,
-            Capability::Ui | Capability::Render | Capability::Input | Capability::Recipes
+            Capability::Ui | Capability::Render | Capability::Input | Capability::Recipes | Capability::Sound
         )
     }
     /// What the player reads before turning the mod on: "May <this>".
@@ -172,6 +176,7 @@ impl Capability {
             Capability::Recipes => {
                 "read the game's recipes and items and which recipes you know, place recipes in your crafting grid and, in creative mode, give you items"
             }
+            Capability::Sound => "play registered sound events on your client",
         }
     }
     /// The capability a component import needs, `Ok(None)` for one every
@@ -553,6 +558,14 @@ capabilities = ["game-read", "hud"]
             "{base}capabilities = [\"ui\"]\nexperimental = [\"ui\"]\n"
         ))
         .unwrap();
+        let sound = Manifest::parse(&format!(
+            "{base}capabilities = [\"sound\"]\\n"
+        )).unwrap_err();
+        assert!(sound.contains("experimental = [\"sound\"]"), "{sound}");
+        let sound = Manifest::parse(&format!(
+            "{base}capabilities = [\"sound\"]\\nexperimental = [\"sound\"]\\n"
+        )).unwrap();
+        assert!(sound.capabilities.contains(&Capability::Sound));
         assert_eq!(m.experimental, [Capability::Ui]);
         // A capability that is (or became) stable is fine in the list.
         Manifest::parse(&format!(
