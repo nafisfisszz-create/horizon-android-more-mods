@@ -213,6 +213,28 @@ mod tests {
         collect_module_references(&parsed.document, &mut refs);
         assert!(refs.contains("player_idle.jpm"));
     }
+
+    #[test]
+    fn loads_referenced_jpm_modules_but_not_face_module() {
+        let root = std::env::temp_dir().join(format!(
+            "horizon-player-cem-{}-{}",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let jem = r#"{"models":[{"id":"body","boxes":[]}],"model":"player_idle.jpm","face_model":"player_face.jpm"}"#;
+        std::fs::write(root.join("player.jem"), jem).unwrap();
+        std::fs::write(root.join("player_slim.jem"), jem).unwrap();
+        std::fs::write(root.join("player_idle.jpm"), r#"{"animations":{}}"#).unwrap();
+        std::fs::write(root.join("player_face.jpm"), r#"{"animations":{}}"#).unwrap();
+
+        let loaded = load_player_models(&root).unwrap();
+        assert!(loaded.modules.contains_key("player_idle.jpm"));
+        assert!(!loaded.modules.contains_key("player_face.jpm"));
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 
