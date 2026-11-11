@@ -49,7 +49,7 @@ pub struct MobData {
     /// Player CEM resources from the active resource-pack overlay, if present.
     pub player_cem: Option<horizon_client_render::player_animation::PlayerModelResources>,
     /// Fully baked normal/slim player models with CEM geometry attached; built once per resource load.
-    pub player_cem_models: std::sync::OnceLock<(super::Part, super::Part)>,
+    pub player_cem_models: std::sync::OnceLock<(std::sync::Arc<super::Part>, std::sync::Arc<super::Part>)>,
     /// Replaced when the resource packs change (the rest of `MobData` never is).
     pub villager_hats: std::sync::RwLock<super::villager_hats::VillagerHats>,
     /// Biome tags (spawns_warm_variant_farm_animals, is_ocean...) by tag id.
