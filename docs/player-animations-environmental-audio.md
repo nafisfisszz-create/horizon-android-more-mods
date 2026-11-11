@@ -97,3 +97,23 @@ Represent unavailable values explicitly. Do not infer weather or biome from visu
 ## Definition of done
 
 A feature is complete only when the WIT/API and host implementation are wired, permissions and limits are tested, Android ARM64 builds, and the feature is exercised on a real device. A design document or successful desktop compile alone is not a release.
+
+## Verified Fresh Animations player-pack requirements
+
+Research note (2026-11-11):
+
+- The base Fresh Animations pack does not animate the player. Player support is a separate Player Extension/add-on.
+- The Player Extension is documented as requiring the EMF + ETF route; OptiFine does not provide custom player model support.
+- The EMF-style model format uses .jem / .jpm model files and expression-driven animation rules. This is not equivalent to a simple keyframe JSON format.
+- Consequently, implementing only a generic keyframe player animation reader would not provide Fresh Animations Player Extension compatibility.
+- Horizon needs a player-specific model loading and animation evaluation path compatible with the actual EMF player extension format, plus the required player state variables/functions used by its expressions.
+- Do not redistribute Fresh Animations or Player Extension assets in this repository. Users should supply their own legally obtained resource-pack files for compatibility testing.
+
+References:
+- Fresh Animations official overview: https://fresh-animations.com/
+- Player animation explanation: https://fresh-animations.com/player/
+- EMF/ETF and CEM format explanation: https://fresh-animations.com/optifine/
+
+### Revised implementation gate
+
+Before coding the parser, inspect representative Player Extension files supplied for local compatibility testing, including player .jem, .jpm, and animation expressions. Without representative real files, parser compatibility cannot be verified and should not be advertised. The implementation must be built against Horizon's actual player renderer path, not guessed from the mod API.
