@@ -36,6 +36,19 @@ pub struct PlayerModelResources {
     /// The optional face module is intentionally excluded: this implementation
     /// targets body/player animation only.
     pub modules: BTreeMap<String, CemResource>,
+    normal_animation_bindings: Vec<(String, String)>,
+    slim_animation_bindings: Vec<(String, String)>,
+}
+
+impl PlayerModelResources {
+    /// Ordered animation bindings for the selected player arm geometry.
+    pub fn animation_bindings(&self, slim: bool) -> &[(String, String)] {
+        if slim {
+            &self.slim_animation_bindings
+        } else {
+            &self.normal_animation_bindings
+        }
+    }
 }
 
 /// Parse a player .jem model file.
@@ -78,7 +91,20 @@ pub fn load_player_models(root: &Path) -> Result<PlayerModelResources, String> {
         let source = read_resource(&path)?;
         modules.insert(name, parse_jpm(&source)?);
     }
-    Ok(PlayerModelResources { normal, slim, modules })
+
+    let mut normal_animation_bindings = normal.animation_bindings.clone();
+    let mut slim_animation_bindings = slim.animation_bindings.clone();
+    for module in modules.values() {
+        normal_animation_bindings.extend(module.animation_bindings.iter().cloned());
+        slim_animation_bindings.extend(module.animation_bindings.iter().cloned());
+    }
+    Ok(PlayerModelResources {
+        normal,
+        slim,
+        modules,
+        normal_animation_bindings,
+        slim_animation_bindings,
+    })
 }
 
 /// Read a resource with a hard size cap before allocating its full contents.
