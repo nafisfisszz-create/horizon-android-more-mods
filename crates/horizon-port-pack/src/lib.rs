@@ -11,6 +11,7 @@ pub mod classes;
 pub mod classify;
 pub mod fabric;
 pub mod fabric_api;
+pub mod fabric_bytecode;
 pub mod fetch;
 pub mod import;
 pub mod inventory;
