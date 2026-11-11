@@ -432,12 +432,15 @@ mod tests {
 
     #[test]
     fn rewrites_this_and_part_targets_to_the_enclosing_jem_model() {
-        let jem = r#"{"models":[{"id":"head_custom","part":"head","animations":[{"this.rx":"1","part.ry":"2","this:hand.rx":"3"}]}]}"#;
+        let jem = r#"{"models":[{"id":"head_custom","part":"head","animations":[{"this.rx":"part.ry + this:hand.rx","part.ry":"2","this:hand.rx":"3"}]}]}"#;
         let parsed = parse_jem(jem).unwrap();
         assert_eq!(
             parsed.animation_bindings,
             vec![
-                ("head_custom.rx".to_owned(), "1".to_owned()),
+                (
+                    "head_custom.rx".to_owned(),
+                    "head.ry + head_custom:hand.rx".to_owned(),
+                ),
                 ("head.ry".to_owned(), "2".to_owned()),
                 ("head_custom:hand.rx".to_owned(), "3".to_owned()),
             ]
