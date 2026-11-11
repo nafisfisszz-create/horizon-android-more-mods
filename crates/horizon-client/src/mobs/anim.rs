@@ -270,6 +270,30 @@ impl Poses {
         let expression_context = context;
         let mut applied = 0;
         for (target, expression) in bindings {
+            for (name, pose) in &current {
+                for (channel, index) in [
+                    ("tx", 0), ("ty", 1), ("tz", 2),
+                    ("rx", 3), ("ry", 4), ("rz", 5),
+                    ("sx", 6), ("sy", 7), ("sz", 8),
+                ] {
+                    expression_context.variables.insert(
+                        format!("{name}.{channel}"),
+                        f64::from(pose[index]),
+                    );
+                }
+            }
+            for (name, pose) in &hierarchical {
+                for (channel, index) in [
+                    ("tx", 0), ("ty", 1), ("tz", 2),
+                    ("rx", 3), ("ry", 4), ("rz", 5),
+                    ("sx", 6), ("sy", 7), ("sz", 8),
+                ] {
+                    expression_context.variables.insert(
+                        format!("{name}.{channel}"),
+                        f64::from(pose[index]),
+                    );
+                }
+            }
             if target.starts_with("var.") || target.starts_with("varb.") {
                 if let Ok(value) =
                     horizon_client_render::player_animation::evaluate_expression(
@@ -407,6 +431,39 @@ mod cem_pose_integration_tests {
 
         assert_eq!(poses.apply_cem_bindings(&bindings, &mut context), 1);
         assert_eq!(poses.pose(&model.children[0].children[0])[3], 0.75);
+    }
+
+    #[test]
+    fn later_cem_expressions_can_read_updated_part_channels() {
+        let model = Part {
+            name: "root".into(),
+            pose: [0.0; 9],
+            polygons: Vec::new(),
+            children: vec![
+                Part {
+                    name: "head".into(),
+                    pose: [0.0; 9],
+                    polygons: Vec::new(),
+                    children: Vec::new(),
+                },
+                Part {
+                    name: "body".into(),
+                    pose: [0.0; 9],
+                    polygons: Vec::new(),
+                    children: Vec::new(),
+                },
+            ],
+        };
+        let mut poses = Poses::new(&model);
+        let mut context = ExpressionContext::default();
+        let bindings = vec![
+            ("head.rx".to_owned(), "0.5".to_owned()),
+            ("body.rx".to_owned(), "head.rx + 0.25".to_owned()),
+        ];
+
+        assert_eq!(poses.apply_cem_bindings(&bindings, &mut context), 2);
+        assert_eq!(poses.map["head"][3], 0.5);
+        assert_eq!(poses.map["body"][3], 0.75);
     }
 
     #[test]
