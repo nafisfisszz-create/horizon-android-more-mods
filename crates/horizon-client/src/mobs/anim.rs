@@ -271,6 +271,17 @@ impl Poses {
             self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
         let mut hierarchical = self.hierarchical_poses.clone();
         let expression_context = context;
+
+        // OptiFine CEM variables have an implicit zero value before their first
+        // assignment. Seed every declared variable before evaluating bindings:
+        // Fresh Animations reads some state (for example frame_counter_prev)
+        // before its first assignment later in the same animation list.
+        for (target, _) in bindings {
+            if target.starts_with("var.") || target.starts_with("varb.") {
+                expression_context.variables.entry(target.clone()).or_insert(0.0);
+            }
+        }
+
         let mut applied = 0;
         for (target, expression) in bindings {
             for (name, pose) in &current {
@@ -410,6 +421,31 @@ mod cem_pose_integration_tests {
     use horizon_client_render::player_animation::{CemResource, ExpressionContext};
     use serde_json::json;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn cem_variables_start_at_zero_before_their_first_assignment() {
+        let mut poses = Poses {
+            map: BTreeMap::from([
+                ("head".to_owned(), [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
+            ]).into_iter().collect(),
+            ..Default::default()
+        };
+        let bindings = vec![
+            ("varb.ready".to_owned(), "var.frame_counter_prev == 0".to_owned()),
+            ("var.frame_counter_prev".to_owned(), "frame_counter".to_owned()),
+            ("head.rx".to_owned(), "if(varb.ready, 1, 0)".to_owned()),
+        ];
+        let mut context = ExpressionContext {
+            variables: BTreeMap::from([("frame_counter".to_owned(), 10.0)]),
+        };
+
+        let applied = poses.apply_cem_bindings(&bindings, &mut context);
+
+        assert_eq!(applied, 3);
+        assert_eq!(context.variables["varb.ready"], 1.0);
+        assert_eq!(context.variables["var.frame_counter_prev"], 10.0);
+        assert_eq!(poses.map["head"][3], 1.0);
+    }
 
     #[test]
     fn cem_animation_overrides_only_assigned_channels_after_vanilla_pose() {
