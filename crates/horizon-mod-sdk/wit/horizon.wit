@@ -67,6 +67,20 @@ interface game {
     raycast: func(distance: f32) -> option<hit>;
 }
 
+/// Experimental client capability `sound`: play registered sound events locally.
+/// Sounds are one-shot; no file paths or mixer access are exposed.
+interface sound {
+    record position {
+        x: f64,
+        y: f64,
+        z: f64,
+    }
+    /// Plays a registered event. None means relative to the listener.
+    /// Volume is clamped to 0..1 and pitch to 0.5..2.0 by the host.
+    /// At most four requests are accepted per mod hook call.
+    play: func(event: string, position: option<position>, volume: f32, pitch: f32) -> result<_, string>;
+}
+
 /// Capability `chat`: messages only the local player sees.
 interface chat {
     /// Shown in chat after the mod's name, like a system message.
@@ -790,6 +804,7 @@ interface server-events {
 world horizon-mod {
     import log;
     import game;
+    import sound;
     import chat;
     import hud;
     import storage;
