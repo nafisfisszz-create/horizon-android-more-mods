@@ -1131,7 +1131,6 @@ impl Mesher<'_> {
         );
         let info = &self.tables.info;
         let catalog = &self.render.model_catalog;
-        let mut models = Vec::new();
         for y in 0..16 {
             for z in 0..16 {
                 for x in 0..16 {
@@ -1178,18 +1177,11 @@ impl Mesher<'_> {
                         continue;
                     }
                     let world = BlockPos::new(center.x * 16 + x, base_y + y, center.z * 16 + z);
-                    if catalog
-                        .models_at(BlockStateId(id), world, &mut models)
-                        .is_err()
-                    {
-                        continue;
-                    }
                     // ModelBlockRenderer: the first part decides smooth lighting
-                    // for all; light-emitting blocks are always lit flat.
-                    let Some(first) = models.first() else {
-                        continue;
-                    };
-                    let ao = self.smooth_lighting && state.emission == 0 && first.ambient_occlusion;
+                    // for all; light-emitting blocks are always lit flat. Visit
+                    // selected models directly instead of allocating a Vec per block.
+                    let mut first_model = true;
+                    let mut ao = false;
                     let origin = match offset(state, world.x, world.z) {
                         Some(o) => [
                             x as f32 + o[0] as f32,
@@ -1241,7 +1233,13 @@ impl Mesher<'_> {
                                 )
                                 .unwrap_or(true);
                     }
-                    for model in &models {
+                    let _ = catalog.for_each_at(BlockStateId(id), world, |model| {
+                        if first_model {
+                            ao = self.smooth_lighting
+                                && state.emission == 0
+                                && model.ambient_occlusion;
+                            first_model = false;
+                        }
                         for face in &model.faces {
                             if face.quad.cull.is_some_and(|d| !visible[d as usize]) {
                                 continue;
@@ -1263,7 +1261,7 @@ impl Mesher<'_> {
                                 force_opaque,
                             );
                         }
-                    }
+                    });
                 }
             }
         }
