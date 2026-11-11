@@ -10,6 +10,9 @@ on:
       - "crates/horizon-client/src/mobs/anim.rs"
       - "crates/horizon-client/src/mobs/data.rs"
       - "crates/horizon-client/src/mobs/render.rs"
+      - "crates/horizon-mod-sdk/wit/**"
+      - "crates/horizon-mods/src/**"
+      - "crates/horizon-client/src/game/mods.rs"
       - ".github/workflows/android-dev.yml"
   workflow_dispatch:
     inputs:
