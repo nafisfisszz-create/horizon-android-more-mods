@@ -105,8 +105,11 @@ impl AnimState {
 #[derive(Clone, Default)]
 pub struct Poses {
     map: HashMap<String, [f32; 9]>,
-    /// CEM hierarchical names (for example head:upper_arm:hand) to render part ids.
-    aliases: HashMap<String, String>,
+    /// Stable model-tree paths let CEM animate repeated child ids independently.
+    part_paths: HashMap<usize, String>,
+    hierarchical_poses: HashMap<String, [f32; 9]>,
+    hidden_paths: std::collections::HashSet<String>,
+    skipped_paths: std::collections::HashSet<String>,
     dummy: [f32; 9],
     /// Parts with `skipDraw` set: their own cubes are not drawn, children are.
     skipped: std::collections::HashSet<String>,
@@ -125,31 +128,46 @@ impl Poses {
         fn walk(
             part: &Part,
             map: &mut HashMap<String, [f32; 9]>,
-            aliases: &mut HashMap<String, String>,
+            part_paths: &mut HashMap<usize, String>,
+            hierarchical_poses: &mut HashMap<String, [f32; 9]>,
             parent_path: &str,
         ) {
             // ModelPart.createPartLookup fills its map with putIfAbsent: the first part keeps a name.
             map.entry(part.name.clone()).or_insert(part.pose);
             let path = if parent_path.is_empty() {
-                if part.name == "root" { String::new() } else { part.name.clone() }
+                if part.name == "root" || part.name.is_empty() {
+                    String::new()
+                } else {
+                    part.name.clone()
+                }
             } else if part.name.is_empty() {
                 parent_path.to_owned()
             } else {
                 format!("{parent_path}:{}", part.name)
             };
             if !path.is_empty() {
-                aliases.entry(path.clone()).or_insert_with(|| part.name.clone());
+                part_paths.insert(part as *const Part as usize, path.clone());
+                hierarchical_poses.entry(path.clone()).or_insert(part.pose);
             }
             for child in &part.children {
-                walk(child, map, aliases, &path);
+                walk(child, map, part_paths, hierarchical_poses, &path);
             }
         }
         self.map.clear();
-        self.aliases.clear();
+        self.part_paths.clear();
+        self.hierarchical_poses.clear();
+        self.hidden_paths.clear();
+        self.skipped_paths.clear();
         self.dummy = [0.0; 9];
         self.skipped.clear();
         self.hidden.clear();
-        walk(model, &mut self.map, &mut self.aliases, "");
+        walk(
+            model,
+            &mut self.map,
+            &mut self.part_paths,
+            &mut self.hierarchical_poses,
+            "",
+        );
     }
     pub fn get(&mut self, name: &str) -> &mut [f32; 9] {
         match self.map.get_mut(name) {
@@ -158,7 +176,12 @@ impl Poses {
         }
     }
     pub fn pose(&self, part: &Part) -> [f32; 9] {
-        self.map.get(&part.name).copied().unwrap_or(part.pose)
+        self.part_paths
+            .get(&(part as *const Part as usize))
+            .and_then(|path| self.hierarchical_poses.get(path))
+            .copied()
+            .or_else(|| self.map.get(&part.name).copied())
+            .unwrap_or(part.pose)
     }
     pub fn skip_draw(&mut self, name: &str) {
         self.skipped.insert(name.to_owned());
@@ -171,8 +194,18 @@ impl Poses {
             self.skipped.insert(name.to_owned());
         }
     }
+    pub fn visible_boxes_path(&mut self, path: &str, visible: bool) {
+        if visible {
+            self.skipped_paths.remove(path);
+        } else if self.hierarchical_poses.contains_key(path) {
+            self.skipped_paths.insert(path.to_owned());
+        }
+    }
     pub fn skips(&self, part: &Part) -> bool {
         self.skipped.contains(&part.name)
+            || self.part_paths
+                .get(&(part as *const Part as usize))
+                .is_some_and(|path| self.skipped_paths.contains(path))
     }
     pub fn has(&self, name: &str) -> bool {
         self.map.contains_key(name)
@@ -194,8 +227,18 @@ impl Poses {
             self.hidden.insert(n.to_owned());
         }
     }
+    pub fn visible_path(&mut self, path: &str, visible: bool) {
+        if visible {
+            self.hidden_paths.remove(path);
+        } else if self.hierarchical_poses.contains_key(path) {
+            self.hidden_paths.insert(path.to_owned());
+        }
+    }
     pub fn is_hidden(&self, part: &Part) -> bool {
         self.hidden.contains(&part.name)
+            || self.part_paths
+                .get(&(part as *const Part as usize))
+                .is_some_and(|path| self.hidden_paths.contains(path))
     }
 
     /// Apply the supported CEM transform channels after the vanilla player pose.
@@ -222,6 +265,7 @@ impl Poses {
 
         let mut current: BTreeMap<String, [f32; 9]> =
             self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
+        let mut hierarchical = self.hierarchical_poses.clone();
         let mut expression_context = context.clone();
         let mut applied = 0;
         for (target, expression) in bindings {
@@ -241,13 +285,11 @@ impl Poses {
             let Some((part, channel)) = target.rsplit_once('.') else {
                 continue;
             };
-            let Some(canonical_part) = current
-                .contains_key(part)
-                .then(|| part.to_owned())
-                .or_else(|| self.aliases.get(part).cloned())
-            else {
+            let is_named_part = current.contains_key(part);
+            let is_hierarchical_part = hierarchical.contains_key(part);
+            if !is_named_part && !is_hierarchical_part {
                 continue;
-            };
+            }
             if channel == "visible" || channel == "visible_boxes" {
                 if let Ok(value) =
                     horizon_client_render::player_animation::evaluate_expression(
@@ -255,10 +297,16 @@ impl Poses {
                         &expression_context,
                     )
                 {
-                    if channel == "visible" {
-                        self.visible(&canonical_part, value != 0.0);
+                    if is_named_part {
+                        if channel == "visible" {
+                            self.visible(part, value != 0.0);
+                        } else {
+                            self.visible_boxes(part, value != 0.0);
+                        }
+                    } else if channel == "visible" {
+                        self.visible_path(part, value != 0.0);
                     } else {
-                        self.visible_boxes(&canonical_part, value != 0.0);
+                        self.visible_boxes_path(part, value != 0.0);
                     }
                     applied += 1;
                 }
@@ -267,15 +315,25 @@ impl Poses {
             if !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz") {
                 continue;
             }
-            let canonical_target = format!("{canonical_part}.{channel}");
-            let one = BTreeMap::from([(canonical_target, expression.clone())]);
+            let base_poses = if is_named_part {
+                current.clone()
+            } else {
+                BTreeMap::from([(part.to_owned(), hierarchical[part])])
+            };
+            let one = BTreeMap::from([(target.clone(), expression.clone())]);
             if let Ok(evaluated) =
                 horizon_client_render::player_animation::evaluate_pose_expressions(
-                    &one, &current, &expression_context,
+                    &one,
+                    &base_poses,
+                    &expression_context,
                 )
             {
                 for (name, pose) in evaluated {
-                    current.insert(name, pose.pose);
+                    if is_named_part {
+                        current.insert(name, pose.pose);
+                    } else {
+                        hierarchical.insert(name, pose.pose);
+                    }
                     applied += 1;
                 }
             }
@@ -285,6 +343,7 @@ impl Poses {
                 *current = pose;
             }
         }
+        self.hierarchical_poses = hierarchical;
         applied
     }
 }
@@ -346,7 +405,7 @@ mod cem_pose_integration_tests {
         let bindings = vec![("head:hand.rx".to_owned(), "0.75".to_owned())];
 
         assert_eq!(poses.apply_cem_bindings(&bindings, &context), 1);
-        assert_eq!(poses.map["hand"][3], 0.75);
+        assert_eq!(poses.pose(&model.children[0].children[0])[3], 0.75);
     }
 
     #[test]
