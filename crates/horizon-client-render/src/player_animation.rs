@@ -92,12 +92,8 @@ pub fn load_player_models(root: &Path) -> Result<PlayerModelResources, String> {
         modules.insert(name, parse_jpm(&source)?);
     }
 
-    let mut normal_animation_bindings = normal.animation_bindings.clone();
-    let mut slim_animation_bindings = slim.animation_bindings.clone();
-    for module in modules.values() {
-        normal_animation_bindings.extend(module.animation_bindings.iter().cloned());
-        slim_animation_bindings.extend(module.animation_bindings.iter().cloned());
-    }
+    let normal_animation_bindings = collect_player_animation_bindings(&normal, &modules);
+    let slim_animation_bindings = collect_player_animation_bindings(&slim, &modules);
     Ok(PlayerModelResources {
         normal,
         slim,
@@ -181,30 +177,67 @@ fn looks_like_expression(key: &str, text: &str) -> bool {
 /// Collect OptiFine/EMF animation pairs from every model and JPM module.
 /// The source format uses an array of objects; keeping a Vec preserves the
 /// order in which a pack declares animation maps.
+fn rewrite_binding_target(
+    target: &str,
+    model_id: Option<&str>,
+    part_name: Option<&str>,
+) -> String {
+    for (prefix, replacement) in [("this", model_id), ("part", part_name)] {
+        if let Some(replacement) = replacement
+            && let Some(suffix) = target.strip_prefix(prefix)
+            && (suffix.starts_with('.') || suffix.starts_with(':'))
+        {
+            return format!("{replacement}{suffix}");
+        }
+    }
+    target.to_owned()
+}
+
 fn collect_animation_bindings(value: &Value, out: &mut Vec<(String, String)>) {
+    collect_animation_bindings_with_context(value, out, None, None);
+}
+
+fn collect_animation_bindings_with_context(
+    value: &Value,
+    out: &mut Vec<(String, String)>,
+    inherited_id: Option<&str>,
+    inherited_part: Option<&str>,
+) {
     match value {
         Value::Object(map) => {
+            let model_id = map.get("id").and_then(Value::as_str).or(inherited_id);
+            let part_name = map.get("part").and_then(Value::as_str).or(inherited_part);
             for (key, child) in map {
                 if key == "animations" {
-                    collect_animation_entries(child, out);
+                    collect_animation_entries(child, out, model_id, part_name);
                 }
-                collect_animation_bindings(child, out);
+                collect_animation_bindings_with_context(child, out, model_id, part_name);
             }
         }
         Value::Array(items) => {
             for child in items {
-                collect_animation_bindings(child, out);
+                collect_animation_bindings_with_context(
+                    child,
+                    out,
+                    inherited_id,
+                    inherited_part,
+                );
             }
         }
         _ => {}
     }
 }
 
-fn collect_animation_entries(value: &Value, out: &mut Vec<(String, String)>) {
+fn collect_animation_entries(
+    value: &Value,
+    out: &mut Vec<(String, String)>,
+    model_id: Option<&str>,
+    part_name: Option<&str>,
+) {
     match value {
         Value::Array(items) => {
             for item in items {
-                collect_animation_entries(item, out);
+                collect_animation_entries(item, out, model_id, part_name);
             }
         }
         Value::Object(map) => {
@@ -213,12 +246,58 @@ fn collect_animation_entries(value: &Value, out: &mut Vec<(String, String)>) {
                     && !target.trim().is_empty()
                     && !expression.trim().is_empty()
                 {
-                    out.push((target.clone(), expression.to_owned()));
+                    out.push((
+                        rewrite_binding_target(target, model_id, part_name),
+                        expression.to_owned(),
+                    ));
                 }
             }
         }
         _ => {}
     }
+}
+
+fn collect_player_animation_bindings(
+    jem: &CemResource,
+    modules: &BTreeMap<String, CemResource>,
+) -> Vec<(String, String)> {
+    fn visit(
+        value: &Value,
+        modules: &BTreeMap<String, CemResource>,
+        out: &mut Vec<(String, String)>,
+        inherited_id: Option<&str>,
+        inherited_part: Option<&str>,
+    ) {
+        match value {
+            Value::Object(map) => {
+                let model_id = map.get("id").and_then(Value::as_str).or(inherited_id);
+                let part_name = map.get("part").and_then(Value::as_str).or(inherited_part);
+                if let Some(module_name) = map.get("model").and_then(Value::as_str)
+                    && let Some(module) = modules.get(module_name)
+                {
+                    out.extend(module.animation_bindings.iter().map(|(target, expression)| {
+                        (
+                            rewrite_binding_target(target, model_id, part_name),
+                            expression.clone(),
+                        )
+                    }));
+                }
+                for child in map.values() {
+                    visit(child, modules, out, model_id, part_name);
+                }
+            }
+            Value::Array(items) => {
+                for child in items {
+                    visit(child, modules, out, inherited_id, inherited_part);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut out = jem.animation_bindings.clone();
+    visit(&jem.document, modules, &mut out, None, None);
+    out
 }
 
 fn count_model_nodes(document: &Value) -> usize {
@@ -276,6 +355,20 @@ mod tests {
         assert!(parse_jpm(&" ".repeat(MAX_RESOURCE_BYTES + 1)).is_err());
         let deep = format!(r#"{{"a":{}}}"#, "[".repeat(MAX_JSON_DEPTH + 1) + "0" + &"]".repeat(MAX_JSON_DEPTH + 1));
         assert!(parse_jpm(&deep).is_err());
+    }
+
+    #[test]
+    fn rewrites_this_and_part_targets_to_the_enclosing_jem_model() {
+        let jem = r#"{"models":[{"id":"head_custom","part":"head","animations":[{"this.rx":"1","part.ry":"2","this:hand.rx":"3"}]}]}"#;
+        let parsed = parse_jem(jem).unwrap();
+        assert_eq!(
+            parsed.animation_bindings,
+            vec![
+                ("head_custom.rx".to_owned(), "1".to_owned()),
+                ("head.ry".to_owned(), "2".to_owned()),
+                ("head_custom:hand.rx".to_owned(), "3".to_owned()),
+            ]
+        );
     }
 
     #[test]
