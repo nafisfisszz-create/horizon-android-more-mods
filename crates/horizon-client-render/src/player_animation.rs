@@ -547,7 +547,14 @@ fn tokenize_expression(source: &str) -> Result<Vec<ExprToken>, String> {
         if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
             i += 1;
-            while i < chars.len() && (chars[i].is_ascii_alphanumeric() || chars[i] == '_' || chars[i] == '.') { i += 1; }
+            while i < chars.len()
+                && (chars[i].is_ascii_alphanumeric()
+                    || chars[i] == '_'
+                    || chars[i] == '.'
+                    || chars[i] == ':')
+            {
+                i += 1;
+            }
             out.push(ExprToken::Ident(chars[start..i].iter().copied().collect()));
             continue;
         }
@@ -770,6 +777,13 @@ mod expression_tests {
         assert_eq!(evaluate_expression("frac(2.75)", &c).unwrap(), 0.75);
         assert_eq!(evaluate_expression("min(5, 2, 7)", &c).unwrap(), 2.0);
         assert_eq!(evaluate_expression("between(3, 1, 4)", &c).unwrap(), 1.0);
+        assert_eq!(evaluate_expression("var.counter + 1", &c).unwrap(), 1.0);
+        let mut hierarchical = c.clone();
+        hierarchical.variables.insert("head:hand.rx".into(), 0.75);
+        assert_eq!(
+            evaluate_expression("head:hand.rx + 0.25", &hierarchical).unwrap(),
+            1.0
+        );
     }
 
     #[test]
