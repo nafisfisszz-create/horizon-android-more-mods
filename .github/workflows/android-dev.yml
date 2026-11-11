@@ -1,4 +1,5 @@
 
+# Keep this file byte-for-byte aligned with packaging/android/dev-builds.yml.
 name: Build Android APK
 run-name: ${{ inputs.build_type || 'Dev Builds' }} · ${{ inputs.abi || 'arm64-v8a' }} · ${{ github.ref_name }}
 
