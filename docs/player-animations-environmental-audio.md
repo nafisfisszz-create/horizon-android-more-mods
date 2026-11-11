@@ -133,3 +133,23 @@ Inspected locally supplied archive `FA+Player-v1.1.zip` (2026-11-11). This is a 
 ### Consequence for implementation
 
 Do not start by translating these expressions into a hand-written list of hardcoded poses. The correct compatibility path is a bounded CEM/EMF subset: parse JEM/JPM hierarchy and animation maps, implement a tested expression parser/evaluator for the functions and operators actually used, then map each referenced runtime variable to authoritative Horizon player state. Unknown functions, missing dependencies, malformed expressions, or unsupported model features must trigger a safe vanilla fallback. First resolve the missing `player_face.jpm` dependency and inspect the actual Horizon player renderer before selecting implementation files.
+
+
+## Implementation progress — CEM expression stage
+
+The renderer crate now contains `player_animation.rs` with:
+- bounded `.jem/.jpm` JSON loading and preservation of unrecognized fields;
+- extraction of expression strings and referenced `.jpm` module names;
+- a bounded numeric expression evaluator with arithmetic, comparisons, boolean operators, ternary selection, and a limited function set (`sin`, `cos`, `sqrt`, `clamp`, `if`, `lerp`, `atan2`, and others).
+
+The evaluator is an isolated stage. It is **not yet a complete OptiFine/EMF expression implementation**: pack-specific functions such as `nbt(...)` require a real entity/NBT context and are deliberately rejected rather than guessed. The evaluator is not yet called by the player renderer.
+
+## Verified existing player-render path
+
+The game already represents player/mannequin avatars through the mob model pipeline:
+- `crates/horizon-client/src/mobs/render.rs` selects the player or slim player body model and skin.
+- `crates/horizon-client/src/mobs.rs` stores model parts as a `Part` tree and exposes `render_model`.
+- `crates/horizon-client/src/mobs/anim.rs` builds per-frame `Poses` from the existing model tree.
+- `crates/horizon-client/src/game.rs` has a separate local-player model geometry path and a guest-player geometry path.
+
+The remaining integration is to translate the CEM cuboid hierarchy into the existing `Part` representation, attach the correct wide/slim model to each player avatar, construct the expression context from that avatar's render state, and apply evaluated values to `Poses` before geometry submission. This is not wired up yet. No APK or installable mod is produced by these commits.
