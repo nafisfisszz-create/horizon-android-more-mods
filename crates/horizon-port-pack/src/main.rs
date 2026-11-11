@@ -9,7 +9,7 @@ use std::{
     process::ExitCode,
 };
 
-const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | fabric-bridge <jar> | fabric-bytecode <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
+const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | fabric-bridge <jar> | fabric-bytecode <jar> | fabric-extract <jar> <out.hmod> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -51,6 +51,7 @@ fn main() -> ExitCode {
             Some("fabric-scan") => fabric_scan(path(1)?),
             Some("fabric-bridge") => fabric_bridge(path(1)?),
             Some("fabric-bytecode") => fabric_bytecode(path(1)?),
+            Some("fabric-extract") => fabric_extract(path(1)?, path(2)?),
             Some("port") => {
                 let work = path(2)?;
                 pipeline::import(path(1)?, work, log)?;
@@ -104,6 +105,19 @@ fn fabric_check(jar: &Path) -> Result<(), String> {
 }
 
 
+
+/// Extracts supported data/assets only; Java classes are never copied or executed.
+fn fabric_extract(jar: &Path, output: &Path) -> Result<(), String> {
+    let report = horizon_port_pack::fabric_hmod::extract_to_hmod(jar, output)?;
+    println!("HMOD created: {}", output.display());
+    println!("Portable files: {}", report.files);
+    println!("Uncompressed bytes: {}", report.bytes);
+    println!("Additional namespaces: {}", if report.namespaces.is_empty() { "(none)".into() } else { report.namespaces.join(", ") });
+    for item in report.skipped { println!("SKIPPED: {item}"); }
+    println!("NOTE: data/assets only. Java entrypoints, Mixins and gameplay behavior are not included.");
+    println!("Next: run cargo horizon-mod check {} and test in Horizon.", output.display());
+    Ok(())
+}
 
 /// Lists symbolic Java/Fabric references from class constant pools without executing bytecode.
 fn fabric_bytecode(jar: &Path) -> Result<(), String> {
