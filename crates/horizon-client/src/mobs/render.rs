@@ -445,7 +445,7 @@ fn attach_player_cem_models(
             continue;
         };
         let parent = if part_name == "root" {
-            Some(base)
+            Some(&mut *base)
         } else {
             find_cem_part_mut(base, part_name)
         };
@@ -1872,11 +1872,11 @@ pub fn stuck_in_body(
     let base = base_transform(m, alpha, camera);
     let s = anim::state(m, alpha);
     let (model_key, _) = body(m);
-    let mut model = m
+    let mut model = (*m
         .kind
         .layer(&model_key)
         .cloned()
-        .unwrap_or_else(|| m.kind.model.clone());
+        .unwrap_or_else(|| m.kind.model.clone())).clone();
     if avatar(m)
         && let Some(player_cem) = &data.player_cem
     {
@@ -2024,11 +2024,11 @@ fn render_visible(
     let overlay = u32::from(red_overlay(m));
     let s = anim::state(m, alpha);
     let (model_key, texture) = body(m);
-    let mut model = m
+    let mut model = (*m
         .kind
         .layer(&model_key)
         .cloned()
-        .unwrap_or_else(|| m.kind.model.clone());
+        .unwrap_or_else(|| m.kind.model.clone())).clone();
     // Fresh Animations player CEM: attach the JEM's custom boxes and submodels
     // to the vanilla player rig before creating per-frame poses. The face JPM
     // is intentionally excluded by the resource loader.
