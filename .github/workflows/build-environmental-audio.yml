@@ -17,6 +17,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -35,9 +36,11 @@ jobs:
         run: python3 generate_audio.py
       - name: Test scene selection
         run: cargo test -p peugaria-environmental-audio
+      - name: Compile mod packer
+        run: cargo build -p cargo-horizon-mod
       - name: Build .hmod
         working-directory: crates/horizon-mod-sdk/examples/environmental-audio
-        run: cargo run --manifest-path ../../../../crates/cargo-horizon-mod/Cargo.toml -- build
+        run: ../../../../target/debug/cargo-horizon-mod build
       - uses: actions/upload-artifact@v4
         with:
           name: peugaria-environmental-audio-hmod
