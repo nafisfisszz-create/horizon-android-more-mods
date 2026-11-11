@@ -153,3 +153,10 @@ The game already represents player/mannequin avatars through the mob model pipel
 - `crates/horizon-client/src/game.rs` has a separate local-player model geometry path and a guest-player geometry path.
 
 The remaining integration is to translate the CEM cuboid hierarchy into the existing `Part` representation, attach the correct wide/slim model to each player avatar, construct the expression context from that avatar's render state, and apply evaluated values to `Poses` before geometry submission. This is not wired up yet. No APK or installable mod is produced by these commits.
+
+
+## CEM pose evaluation stage
+
+The renderer-side module now also exposes a pose-binding stage. Given a base pose for each named part, a map of expression bindings such as `head.rx` or `body.ty`, and a per-frame variable context, it evaluates the numeric values and returns updated Horizon-style 9-component poses. Unassigned components retain their base values. Missing part names, unknown channels, invalid expressions, and extreme transform values are rejected.
+
+This is still a bridge API, not a live player integration. The actual Fresh Animations files must first be mapped from their OptiFine CEM animation schema into these bindings; the renderer must then consume the returned poses. The exact pack schema and all required expression functions still need validation against the supplied Player Extension archive. Face-model resources remain out of scope.
