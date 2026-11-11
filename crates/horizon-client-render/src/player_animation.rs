@@ -209,6 +209,47 @@ fn looks_like_expression(key: &str, text: &str) -> bool {
 /// Collect OptiFine/EMF animation pairs from every model and JPM module.
 /// The source format uses an array of objects; keeping a Vec preserves the
 /// order in which a pack declares animation maps.
+fn rewrite_expression_references(
+    expression: &str,
+    model_id: Option<&str>,
+    part_name: Option<&str>,
+) -> String {
+    let chars: Vec<char> = expression.chars().collect();
+    let mut output = String::with_capacity(expression.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_alphabetic() || chars[i] == '_' {
+            let start = i;
+            i += 1;
+            while i < chars.len()
+                && (chars[i].is_ascii_alphanumeric()
+                    || chars[i] == '_'
+                    || chars[i] == '.'
+                    || chars[i] == ':')
+            {
+                i += 1;
+            }
+            let token: String = chars[start..i].iter().collect();
+            let rewritten = if let Some(id) = model_id
+                && (token.starts_with("this.") || token.starts_with("this:"))
+            {
+                format!("{id}{}", &token[4..])
+            } else if let Some(part) = part_name
+                && (token.starts_with("part.") || token.starts_with("part:"))
+            {
+                format!("{part}{}", &token[4..])
+            } else {
+                token
+            };
+            output.push_str(&rewritten);
+        } else {
+            output.push(chars[i]);
+            i += 1;
+        }
+    }
+    output
+}
+
 fn rewrite_binding_target(
     target: &str,
     model_id: Option<&str>,
@@ -280,7 +321,7 @@ fn collect_animation_entries(
                 {
                     out.push((
                         rewrite_binding_target(target, model_id, part_name),
-                        expression.to_owned(),
+                        rewrite_expression_references(expression, model_id, part_name),
                     ));
                 }
             }
@@ -310,7 +351,7 @@ fn collect_player_animation_bindings(
                     out.extend(module.animation_bindings.iter().map(|(target, expression)| {
                         (
                             rewrite_binding_target(target, model_id, part_name),
-                            expression.clone(),
+                            rewrite_expression_references(expression, model_id, part_name),
                         )
                     }));
                 }
