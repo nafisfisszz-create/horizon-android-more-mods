@@ -571,6 +571,14 @@ fn player_cem_context(
         ("is_jumping", flag(!m.on_ground && m.velocity.y > 0.0)),
         ("is_swinging", flag(s.swing > 0.0)),
         (
+            "is_swinging_right_arm",
+            flag(s.swing > 0.0 && m.extra.swing_right_arm == Some(true)),
+        ),
+        (
+            "is_swinging_left_arm",
+            flag(s.swing > 0.0 && m.extra.swing_right_arm == Some(false)),
+        ),
+        (
             "is_swimming",
             flag(m.extra.swim.amount(s.partial) > 0.0 || m.fluids.in_water),
         ),

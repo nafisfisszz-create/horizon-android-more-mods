@@ -558,11 +558,15 @@ fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> Result<St
             .filter(|c| !c.is_whitespace())
             .collect();
         let key = match args.as_str() {
-            "Inventory,raw:iregex:.*Slot:-106b.*filled_map.*" => "cem.nbt.off_map",
+            "Inventory,raw:iregex:.*Slot:-106b.*filled_map.*"
+            | "equipment.offhand,raw:iregex:.*filled_map.*" => "cem.nbt.off_map",
             "SelectedItem.id,raw:iregex:.*filled_map.*" => "cem.nbt.main_map",
-            "SleepingX,exists:true" => "cem.nbt.sleeping",
+            "SleepingX,exists:true" | "sleeping_pos,exists:true" => "cem.nbt.sleeping",
             "abilities.flying,1" => "cem.nbt.flying",
             "abilities.flying,0" => "cem.nbt.not_flying",
+            // Item-specific predicates outside the supported pose subset stay
+            // inactive without aborting unrelated idle and locomotion bindings.
+            value if value.contains("raw:iregex:") => "cem.nbt.unsupported_item",
             _ => "",
         };
         if key.is_empty() {
