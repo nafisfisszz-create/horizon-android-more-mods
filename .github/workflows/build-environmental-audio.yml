@@ -26,6 +26,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+      - name: Ensure WebAssembly target is installed
+        run: |
+          rustup target add wasm32-unknown-unknown
+          rustup target list --installed
       - name: Generate original ambience assets
         working-directory: crates/horizon-mod-sdk/examples/environmental-audio
         run: python3 generate_audio.py
