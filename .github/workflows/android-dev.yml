@@ -1,8 +1,13 @@
 
 name: Build Android APK
-run-name: ${{ inputs.build_type || 'Build Android APK' }} · ${{ inputs.abi || 'arm64-v8a' }} · ${{ github.ref_name }}
+run-name: ${{ inputs.build_type || 'Dev Builds' }} · ${{ inputs.abi || 'arm64-v8a' }} · ${{ github.ref_name }}
 
 on:
+  push:
+    branches: [android]
+    paths:
+      - "crates/horizon-client-render/src/player_animation.rs"
+      - "crates/horizon-client/src/mobs/anim.rs"
   workflow_dispatch:
     inputs:
       build_type:
@@ -35,7 +40,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build ${{ inputs.build_type }} - ${{ inputs.abi }}
+    name: Build ${{ inputs.build_type || 'Dev Builds' }} - ${{ inputs.abi || 'arm64-v8a' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     env:
@@ -45,7 +50,7 @@ jobs:
       HORIZON_TELEMETRY_URL: 'off'
     steps:
       - name: Prevent Dev version downgrade on workflow re-runs
-        if: ${{ inputs.build_type == 'Dev Builds' && github.run_attempt > 1 }}
+        if: ${{ (github.event_name == 'push' || inputs.build_type == 'Dev Builds') && github.run_attempt > 1 }}
         shell: bash
         run: |
           echo "::error::Re-running an old Dev workflow keeps the same run number and could produce a lower version. Start a new workflow run instead."
@@ -193,7 +198,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Prepare temporary development version
-        if: inputs.build_type == 'Dev Builds'
+        if: ${{ github.event_name == 'push' || inputs.build_type == 'Dev Builds' }}
         env:
           DEV_BUILD_NUMBER: ${{ github.run_number }}
         shell: bash
@@ -314,7 +319,7 @@ jobs:
       - name: Upload Android APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: horizon-android-${{ inputs.build_type == 'Public Builds' && 'public' || 'dev' }}-${{ inputs.abi == 'All In One arch' && 'all-arch' || inputs.abi == '32 + 64 arm' && 'arm32-arm64' || inputs.abi }}-apk
+          name: horizon-android-${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'Public Builds' && 'public' || 'dev' }}-${{ inputs.abi == 'All In One arch' && 'all-arch' || inputs.abi == '32 + 64 arm' && 'arm32-arm64' || inputs.abi || 'arm64-v8a' }}-apk
           path: .local/android/apk/*/horizon-android-public.apk
           if-no-files-found: error
-          retention-days: ${{ inputs.build_type == 'Public Builds' && 30 || 14 }}
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'Public Builds' && 30 || 14 }}
