@@ -76,12 +76,25 @@ impl MobData {
             }
             _ => Self::fallback(facts),
         };
-        let cem_root = root.join("assets/minecraft/optifine/cem");
-        if cem_root.join("player.jem").is_file()
-            && cem_root.join("player_slim.jem").is_file()
-        {
+        // EMF resource packs (including Fresh Animations Player) store CEM
+        // resources under assets/minecraft/emf/cem. Keep OptiFine's legacy
+        // directory as a fallback for packs that still use it.
+        let cem_roots = [
+            root.join("assets/minecraft/emf/cem"),
+            root.join("assets/minecraft/optifine/cem"),
+        ];
+        if let Some(cem_root) = cem_roots.into_iter().find(|path| {
+            path.join("player.jem").is_file() && path.join("player_slim.jem").is_file()
+        }) {
             match horizon_client_render::player_animation::load_player_models(&cem_root) {
-                Ok(models) => data.player_cem = Some(models),
+                Ok(models) => {
+                    log::info!(
+                        "Horizon: loaded player CEM resources from {} ({} JPM modules)",
+                        cem_root.display(),
+                        models.modules.len()
+                    );
+                    data.player_cem = Some(models);
+                }
                 Err(error) => log::warn!("Horizon: could not load player CEM resources: {error}"),
             }
         }
