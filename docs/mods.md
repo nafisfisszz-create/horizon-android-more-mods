@@ -34,7 +34,11 @@ Client code mods may opt into the experimental `sound` capability in their manif
 sound-event IDs locally, either at a world position or relative to the listener.
 The host clamps volume and pitch, accepts at most four requests per hook call and
 eight per second, and never treats an event ID as a filesystem path. The current
-API is one-shot: it does not expose looping playback or custom audio-file loading.
+API is one-shot: it does not expose looping playback or arbitrary file-path loading.
+A mod can still ship sound assets through the normal content overlay: declare the
+`registries` capability (API 0.2), include `assets/<mod-id>/sounds.json` and its
+OGG files, then call those registered event IDs through `sound`. Content assets
+are loaded at game start, so restart after enabling the mod.
 
 ## Making a content mod
 
