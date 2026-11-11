@@ -343,39 +343,50 @@ impl Poses {
             if !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz") {
                 continue;
             }
-            let base_poses = if is_named_part {
-                current.clone()
-            } else {
-                BTreeMap::from([(part.to_owned(), hierarchical[part])])
+            let channel_index = match channel {
+                "tx" => 0, "ty" => 1, "tz" => 2,
+                "rx" => 3, "ry" => 4, "rz" => 5,
+                "sx" => 6, "sy" => 7, "sz" => 8,
+                _ => continue,
             };
-            let one = BTreeMap::from([(target.clone(), expression.clone())]);
-            if let Ok(evaluated) =
-                horizon_client_render::player_animation::evaluate_pose_expressions(
-                    &one,
-                    &base_poses,
+            let Ok(value) =
+                horizon_client_render::player_animation::evaluate_expression(
+                    expression,
                     &expression_context,
                 )
-            {
-                for (name, pose) in evaluated {
-                    if is_named_part {
-                        current.insert(name.clone(), pose.pose);
-                    } else {
-                        hierarchical.insert(name.clone(), pose.pose);
-                    }
-                    // Publish each newly evaluated channel immediately. Later CEM
-                    // expressions in the same ordered animation list may reference it.
-                    for (channel, index) in [
-                        ("tx", 0), ("ty", 1), ("tz", 2),
-                        ("rx", 3), ("ry", 4), ("rz", 5),
-                        ("sx", 6), ("sy", 7), ("sz", 8),
-                    ] {
-                        expression_context.variables.insert(
-                            format!("{name}.{channel}"),
-                            f64::from(pose.pose[index]),
-                        );
-                    }
-                    applied += 1;
+            else {
+                continue;
+            };
+            if !value.is_finite() || value.abs() > 1_000_000.0 {
+                continue;
+            }
+            let value = value as f32;
+            if is_named_part {
+                if let Some(pose) = current.get_mut(part) {
+                    pose[channel_index] = value;
                 }
+            } else if let Some(pose) = hierarchical.get_mut(part) {
+                pose[channel_index] = value;
+            }
+            // Publish the complete updated pose immediately. Subsequent CEM
+            // expressions can reference any channel changed by an earlier binding.
+            let updated_pose = if is_named_part {
+                current.get(part).copied()
+            } else {
+                hierarchical.get(part).copied()
+            };
+            if let Some(pose) = updated_pose {
+                for (channel, index) in [
+                    ("tx", 0), ("ty", 1), ("tz", 2),
+                    ("rx", 3), ("ry", 4), ("rz", 5),
+                    ("sx", 6), ("sy", 7), ("sz", 8),
+                ] {
+                    expression_context.variables.insert(
+                        format!("{part}.{channel}"),
+                        f64::from(pose[index]),
+                    );
+                }
+                applied += 1;
             }
         }
         for (name, pose) in current {
