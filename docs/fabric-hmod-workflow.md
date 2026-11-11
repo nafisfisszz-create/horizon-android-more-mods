@@ -19,8 +19,8 @@ The presence of a file does not prove Horizon supports its schema or behavior. H
 2. Run `fabric-bytecode <mod.jar>` to inventory symbolic references to Fabric, Mixin and Minecraft classes. This is a static constant-pool scan, not execution or full decompilation.
 3. Run `fabric-bridge <mod.jar>` to see whether declared Fabric API modules have documented Horizon hook candidates. A partial mapping is not a working compatibility layer.
 4. Inspect the JAR's `assets/` and `data/` content. Keep only content that is licensed for redistribution and whose format is supported by Horizon.
-5. For a data-only port, create a Horizon content-mod project with `cargo horizon-mod new <directory>`. Copy and adapt supported assets/data into it. Set the manifest to API `0.2`, side `both`, and capability `registries` when it adds registries.
-6. Run `cargo horizon-mod check <file.hmod>` after building. Fix every validation error, then test the mod in the target Horizon client.
+5. To create a first-pass data-only package, run `horizon-port-pack fabric-extract <mod.jar> <out.hmod>`. It copies eligible `assets/` and `data/` entries into an API 0.2 content-only HMOD, skips reserved namespaces except vanilla/convention tag additions, and refuses to overwrite an existing output. It does not adapt unsupported JSON schemas.
+6. Run `cargo horizon-mod check <out.hmod>` using the Horizon SDK tooling. Fix every validation error, inspect the extracted files, then test the mod in the target Horizon client.
 7. If the original mod has behavior implemented in Java, port that behavior separately to Horizon's supported native mod interfaces. A content-only HMOD cannot reproduce Java callbacks, Mixins, networking handlers or arbitrary gameplay logic.
 
 ## What the current Fabric tools do not do
@@ -29,6 +29,6 @@ The presence of a file does not prove Horizon supports its schema or behavior. H
 - They do not translate Java classes into Rust or WebAssembly.
 - They do not implement missing Fabric API modules.
 - They do not guarantee that arbitrary Fabric `assets/` or `data/` files pass Horizon's content validation.
-- They do not yet emit a ready-to-install HMOD from an arbitrary JAR.
+- `fabric-extract` emits a first-pass content-only HMOD, not a fully ported or guaranteed install-ready mod.
 
 The output of the current commands is an analysis report. HMOD creation happens only after content has been selected/adapted and, where necessary, Java behavior has been ported. Never rename a `.jar` to `.hmod`.
