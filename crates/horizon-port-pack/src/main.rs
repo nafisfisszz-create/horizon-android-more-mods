@@ -9,7 +9,7 @@ use std::{
     process::ExitCode,
 };
 
-const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
+const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | fabric-bridge <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -49,6 +49,7 @@ fn main() -> ExitCode {
             }
             Some("fabric-check") => fabric_check(path(1)?),
             Some("fabric-scan") => fabric_scan(path(1)?),
+            Some("fabric-bridge") => fabric_bridge(path(1)?),
             Some("port") => {
                 let work = path(2)?;
                 pipeline::import(path(1)?, work, log)?;
@@ -98,6 +99,25 @@ fn fabric_check(jar: &Path) -> Result<(), String> {
         println!("compatibility: Java code requires porting");
         for blocker in analysis.blockers { println!("  blocker: {blocker}"); }
     }
+    Ok(())
+}
+
+
+/// Reports documented native-hook candidates for API modules a JAR declares.
+fn fabric_bridge(jar: &Path) -> Result<(), String> {
+    let metadata = horizon_port_pack::fabric::read_jar(jar)?;
+    println!("{} {} — Fabric API bridge assessment", metadata.id, metadata.version);
+    let assessments = horizon_port_pack::fabric_api::assess(&metadata);
+    if assessments.is_empty() {
+        println!("No recognized Fabric API module dependencies were declared.");
+        println!("This does not prove the mod has no Fabric API usage; inspect its bytecode and transitive dependencies.");
+        return Ok(());
+    }
+    for item in assessments {
+        println!("{}: {} (Horizon hooks: {})", item.fabric_module, item.status, item.horizon_hooks);
+        println!("  {}", item.notes);
+    }
+    println!("NOTE: mapping only. Java entrypoints, Mixins and bytecode still require a native port.");
     Ok(())
 }
 
