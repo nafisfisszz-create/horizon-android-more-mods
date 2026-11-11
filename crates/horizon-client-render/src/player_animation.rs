@@ -1,8 +1,7 @@
-//! Safe first-stage loader for OptiFine CEM player model resources.
+//! OptiFine CEM player-resource loading and expression evaluation.
 //!
-//! This module deliberately does not claim to render Fresh Animations yet.
-//! It parses the JSON resource files and keeps their source tree intact so a
-//! later model/animation evaluator can consume the exact pack-specific schema.
+//! Horizon's player renderer consumes these resources to attach custom JEM
+//! geometry and apply supported CEM animation channels to player poses.
 use serde_json::Value;
 use std::{collections::{BTreeMap, BTreeSet}, path::Path};
 
