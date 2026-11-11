@@ -137,11 +137,11 @@ def make_scene(kind, seed):
     return left, right
 
 
-def write_ogg(kind, seed):
+def write_ogg(kind, seed, suffix):
     left, right = make_scene(kind, seed)
     os.makedirs(AMBIENT, exist_ok=True)
-    wav_path = os.path.join(AMBIENT, kind + ".wav")
-    ogg_path = os.path.join(AMBIENT, kind + ".ogg")
+    wav_path = os.path.join(AMBIENT, kind + suffix + ".wav")
+    ogg_path = os.path.join(AMBIENT, kind + suffix + ".ogg")
     with wave.open(wav_path, "wb") as stream:
         stream.setnchannels(2)
         stream.setsampwidth(2)
@@ -166,7 +166,9 @@ def main():
         "forest_day", "forest_night", "rain", "cave",
         "beach", "underwater", "nether", "the_end",
     ]):
-        write_ogg(kind, 20261111 + index * 101)
+        seed = 20261111 + index * 101
+        write_ogg(kind, seed, "_a")
+        write_ogg(kind, seed + 47, "_b")
 
 
 if __name__ == "__main__":
