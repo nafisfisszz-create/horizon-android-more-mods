@@ -42,7 +42,10 @@ pub fn extract_to_hmod(jar: &Path, output: &Path) -> Result<ExtractReport, Strin
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_owned();
+        let name = entry
+            .name()
+            .map_err(|e| format!("invalid ZIP entry name: {e}"))?
+            .into_owned();
         if !(name.starts_with("assets/") || name.starts_with("data/")) {
             continue;
         }
