@@ -200,6 +200,258 @@ fn avatar(m: &Mob) -> bool {
     matches!(&*m.kind.id, "minecraft:player" | "minecraft:mannequin")
 }
 
+fn cem_array<const N: usize>(value: &serde_json::Value, fallback: [f32; N]) -> [f32; N] {
+    let Some(values) = value.as_array() else {
+        return fallback;
+    };
+    std::array::from_fn(|i| {
+        values
+            .get(i)
+            .and_then(serde_json::Value::as_f64)
+            .map(|v| v as f32)
+            .unwrap_or(fallback[i])
+    })
+}
+
+fn resolve_cem_model(
+    source: &serde_json::Value,
+    modules: &std::collections::BTreeMap<
+        String,
+        horizon_client_render::player_animation::CemResource,
+    >,
+) -> serde_json::Value {
+    let mut resolved = source
+        .get("model")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|name| modules.get(name))
+        .map(|module| module.document.clone())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if let (Some(destination), Some(source)) = (resolved.as_object_mut(), source.as_object()) {
+        for (key, value) in source {
+            if key != "model" {
+                destination.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    resolved
+}
+
+fn cem_box_polygons(
+    boxes: &serde_json::Value,
+    texture_size: [f32; 2],
+) -> Vec<super::Polygon> {
+    let mut polygons = Vec::new();
+    let Some(boxes) = boxes.as_array() else {
+        return polygons;
+    };
+    let [texture_width, texture_height] = texture_size;
+    if texture_width <= 0.0 || texture_height <= 0.0 {
+        return polygons;
+    }
+
+    let mut add_face = |positions: [[f32; 3]; 4], uvs: [[f32; 2]; 4]| {
+        let a = glam::Vec3::from_array(positions[0]);
+        let b = glam::Vec3::from_array(positions[1]);
+        let d = glam::Vec3::from_array(positions[2]);
+        let normal = (b - a).cross(d - a).normalize_or_zero().to_array();
+        let vertices = std::array::from_fn(|i| {
+            [
+                positions[i][0],
+                positions[i][1],
+                positions[i][2],
+                uvs[i][0] / texture_width,
+                uvs[i][1] / texture_height,
+            ]
+        });
+        polygons.push(super::Polygon { normal, vertices });
+    };
+
+    for cube in boxes {
+        let coordinates = cem_array(&cube["coordinates"], [0.0; 6]);
+        let [x, y, z, width, height, depth] = coordinates;
+        let inflate = cube["sizeAdd"].as_f64().unwrap_or(0.0) as f32;
+        if !coordinates.iter().all(|v| v.is_finite())
+            || !inflate.is_finite()
+            || inflate.abs() > 64.0
+            || width.abs() > 1024.0
+            || height.abs() > 1024.0
+            || depth.abs() > 1024.0
+        {
+            continue;
+        }
+        let x0 = x - inflate;
+        let y0 = y - inflate;
+        let z0 = z - inflate;
+        let x1 = x + width + inflate;
+        let y1 = y + height + inflate;
+        let z1 = z + depth + inflate;
+        if x0 == x1 || y0 == y1 || z0 == z1 {
+            continue;
+        }
+        let offset = cem_array(&cube["textureOffset"], [0.0; 2]);
+        let (u, v) = (offset[0], offset[1]);
+        let (w, h, d) = (x1 - x0, y1 - y0, z1 - z0);
+
+        // The six rectangles follow the classic CEM box UV net.
+        add_face(
+            [[x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]],
+            [
+                [u + d + w, v + d],
+                [u + d, v + d],
+                [u + d, v + d + h],
+                [u + d + w, v + d + h],
+            ],
+        );
+        add_face(
+            [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]],
+            [
+                [u + d + w + d, v + d],
+                [u + d + w + d + w, v + d],
+                [u + d + w + d + w, v + d + h],
+                [u + d + w + d, v + d + h],
+            ],
+        );
+        add_face(
+            [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]],
+            [
+                [u, v + d],
+                [u + d, v + d],
+                [u + d, v + d + h],
+                [u, v + d + h],
+            ],
+        );
+        add_face(
+            [[x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]],
+            [
+                [u + d + w, v + d],
+                [u + d + w + d, v + d],
+                [u + d + w + d, v + d + h],
+                [u + d + w, v + d + h],
+            ],
+        );
+        add_face(
+            [[x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]],
+            [
+                [u + d, v],
+                [u + d + w, v],
+                [u + d + w, v + d],
+                [u + d, v + d],
+            ],
+        );
+        add_face(
+            [[x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]],
+            [
+                [u + d + w, v],
+                [u + d + w + w, v],
+                [u + d + w + w, v + d],
+                [u + d + w, v + d],
+            ],
+        );
+    }
+    polygons
+}
+
+fn build_cem_part(
+    source: &serde_json::Value,
+    texture_size: [f32; 2],
+    modules: &std::collections::BTreeMap<
+        String,
+        horizon_client_render::player_animation::CemResource,
+    >,
+    depth: usize,
+) -> Option<Part> {
+    if depth > 64 {
+        return None;
+    }
+    let value = resolve_cem_model(source, modules);
+    let name = value
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| value.get("part").and_then(serde_json::Value::as_str))
+        .unwrap_or("cem_part")
+        .to_owned();
+    let translation = cem_array(&value["translate"], [0.0; 3]);
+    let rotation = cem_array(&value["rotate"], [0.0; 3]).map(f32::to_radians);
+    let scale = match value.get("scale") {
+        Some(serde_json::Value::Number(number)) => {
+            let scale = number.as_f64().unwrap_or(1.0) as f32;
+            [scale; 3]
+        }
+        Some(serde_json::Value::Array(_)) => cem_array(&value["scale"], [1.0; 3]),
+        _ => [1.0; 3],
+    };
+    let mut pose = [
+        translation[0],
+        translation[1],
+        translation[2],
+        rotation[0],
+        rotation[1],
+        rotation[2],
+        scale[0],
+        scale[1],
+        scale[2],
+    ];
+    if !pose.iter().all(|v| v.is_finite()) {
+        pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+    }
+    let polygons = cem_box_polygons(&value["boxes"], texture_size);
+    let mut children = Vec::new();
+    if let Some(submodels) = value["submodels"].as_array() {
+        for submodel in submodels {
+            if let Some(child) = build_cem_part(submodel, texture_size, modules, depth + 1) {
+                children.push(child);
+            }
+        }
+    }
+    children.sort_by(|a, b| a.name.cmp(&b.name));
+    Some(Part {
+        name,
+        pose,
+        polygons,
+        children,
+    })
+}
+
+fn find_cem_part_mut<'a>(part: &'a mut Part, name: &str) -> Option<&'a mut Part> {
+    if part.name == name {
+        return Some(part);
+    }
+    for child in &mut part.children {
+        if let Some(found) = find_cem_part_mut(child, name) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn attach_player_cem_models(
+    base: &mut Part,
+    resource: &horizon_client_render::player_animation::CemResource,
+    modules: &std::collections::BTreeMap<
+        String,
+        horizon_client_render::player_animation::CemResource,
+    >,
+) {
+    let texture_size = cem_array(&resource.document["textureSize"], [64.0, 64.0]);
+    let Some(models) = resource.document["models"].as_array() else {
+        return;
+    };
+    for source in models {
+        let part_name = source["part"].as_str().unwrap_or("root");
+        let attach = source["attach"].as_bool().unwrap_or(true);
+        let Some(custom) = build_cem_part(source, texture_size, modules, 0) else {
+            continue;
+        };
+        let Some(parent) = find_cem_part_mut(base, part_name) else {
+            continue;
+        };
+        if !attach {
+            parent.polygons.clear();
+        }
+        parent.children.push(custom);
+    }
+}
+
 /// The player-facing variables used by the common OptiFine CEM expressions.
 /// Values not represented by Horizon's current player render state are left
 /// undefined; expressions depending on them are skipped by the pose evaluator.
@@ -1613,11 +1865,17 @@ pub fn stuck_in_body(
     let base = base_transform(m, alpha, camera);
     let s = anim::state(m, alpha);
     let (model_key, _) = body(m);
-    let model = m
+    let mut model = m
         .kind
         .layer(&model_key)
         .cloned()
         .unwrap_or_else(|| m.kind.model.clone());
+    if avatar(m)
+        && let Some(player_cem) = &data.player_cem
+    {
+        let resource = if m.slim { &player_cem.slim } else { &player_cem.normal };
+        attach_player_cem_models(&mut model, resource, &player_cem.modules);
+    }
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
     let mut random = LegacyRandom::new(i64::from(id));
