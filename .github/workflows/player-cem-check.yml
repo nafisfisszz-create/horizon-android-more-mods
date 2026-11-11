@@ -1,0 +1,39 @@
+name: CEM player animation checks
+
+on:
+  push:
+    branches: [android]
+    paths:
+      - "crates/horizon-client-render/src/player_animation.rs"
+      - "crates/horizon-client-render/src/lib.rs"
+      - "crates/horizon-client-render/Cargo.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/player-cem-check.yml"
+  pull_request:
+    paths:
+      - "crates/horizon-client-render/src/player_animation.rs"
+      - "crates/horizon-client-render/src/lib.rs"
+      - "crates/horizon-client-render/Cargo.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/player-cem-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  player-cem:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal --component rustfmt
+          rustup default 1.95.0
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Test CEM player animation module
+        run: cargo test -p horizon-client-render --lib player_animation
