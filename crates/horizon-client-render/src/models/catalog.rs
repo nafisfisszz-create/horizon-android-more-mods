@@ -301,6 +301,16 @@ impl StateModels {
         out.clear();
         self.each_seeded(state, position_seed(position), |(_, model)| out.push(model))
     }
+    /// Visit the selected models directly, avoiding a temporary Vec for every
+    /// block emitted by the section mesher.
+    pub fn for_each_at(
+        &self,
+        state: BlockStateId,
+        position: BlockPos,
+        mut visit: impl FnMut(&BakedModel),
+    ) -> Result<()> {
+        self.each_seeded(state, position_seed(position), |(_, model)| visit(model))
+    }
     fn each_seeded<'a>(
         &'a self,
         state: BlockStateId,
