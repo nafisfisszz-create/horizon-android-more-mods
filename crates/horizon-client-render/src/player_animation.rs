@@ -211,7 +211,12 @@ pub struct ExpressionContext {
 
 /// Evaluate the arithmetic and conditional subset used by CEM animation expressions.
 /// Unknown variables/functions fail closed instead of silently becoming zero.
+pub const MAX_EXPRESSION_BYTES: usize = 16 * 1024;
+
 pub fn evaluate_expression(source: &str, context: &ExpressionContext) -> Result<f64, String> {
+    if source.len() > MAX_EXPRESSION_BYTES {
+        return Err(format!("expression exceeds {MAX_EXPRESSION_BYTES} bytes"));
+    }
     let tokens = tokenize_expression(source)?;
     let mut parser = ExpressionParser { tokens, cursor: 0, context };
     let value = parser.parse_expression(0)?;
@@ -393,14 +398,16 @@ fn apply_function(name: &str, args: &[f64]) -> Result<f64, String> {
         "ceil" => unary(f64::ceil), "round" => unary(f64::round), "exp" => unary(f64::exp),
         "ln" => unary(f64::ln), "signum" => unary(f64::signum),
         "atan2" => binary(f64::atan2), "pow" => binary(f64::powf), "min" => binary(f64::min),
-        "max" => binary(f64::max),
+        "max" => binary(f64::max), "fmod" => binary(|a, b| a % b),
+        "torad" => unary(f64::to_radians), "todeg" => unary(f64::to_degrees),
         "if" => {
             if args.len() == 3 { Ok(if args[0] != 0.0 { args[1] } else { args[2] }) }
             else { Err("if expects 3 arguments".into()) }
         }
         "clamp" => {
-            if args.len() == 3 { Ok(args[0].clamp(args[1], args[2])) }
-            else { Err("clamp expects 3 arguments".into()) }
+            if args.len() != 3 { return Err("clamp expects 3 arguments".into()); }
+            if args[1] > args[2] { return Err("clamp minimum exceeds maximum".into()); }
+            Ok(args[0].clamp(args[1], args[2]))
         }
         "lerp" => {
             if args.len() == 3 { Ok(args[0] + (args[1] - args[0]) * args[2]) }
