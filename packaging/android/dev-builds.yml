@@ -1,148 +1,327 @@
-name: Android dev APKs
-run-name: Android dev · ${{ github.sha }}
+
+name: Build Android APK
+run-name: ${{ inputs.build_type || 'Dev Builds' }} · ${{ inputs.abi || 'arm64-v8a' }} · ${{ github.ref_name }}
 
 on:
   push:
     branches: [android]
     paths:
-      - 'crates/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'research-lock.json'
-      - 'packaging/android/**'
-      - 'tools/**'
-      - 'mods/**'
-      - 'third_party/**'
-      - '.github/workflows/android-dev.yml'
-      - 'LICENSE'
-      - 'THIRD_PARTY_NOTICES.md'
+      - "crates/horizon-client-render/src/player_animation.rs"
+      - "crates/horizon-client/src/mobs/anim.rs"
+      - "crates/horizon-client/src/mobs/data.rs"
+      - "crates/horizon-client/src/mobs/render.rs"
   workflow_dispatch:
     inputs:
-      all_abis:
-        description: Also build ARMv7, x86 and x86_64
-        type: boolean
-        default: false
+      build_type:
+        description: Build variant (Dev Builds do not bump the version; Public Builds bump the patch version)
+        required: true
+        type: choice
+        default: Dev Builds
+        options:
+          - Dev Builds
+          - Public Builds
+      abi:
+        description: Android CPU architecture
+        required: true
+        type: choice
+        default: arm64-v8a
+        options:
+          - arm64-v8a
+          - x86_64
+          - armeabi-v7a
+          - x86
+          - 32 + 64 arm
+          - All In One arch
 
 permissions:
-  contents: read
+  contents: write
+
 concurrency:
-  group: android-dev-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-apk-${{ github.ref }}-${{ inputs.build_type }}
+  cancel-in-progress: ${{ inputs.build_type == 'Dev Builds' }}
 
 jobs:
   build:
-    # Never expose a signing secret to pull requests or arbitrary dispatch refs.
-    if: github.ref == 'refs/heads/android'
+    name: Build ${{ inputs.build_type || 'Dev Builds' }} - ${{ inputs.abi || 'arm64-v8a' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      matrix:
-        abi: ${{ fromJSON(inputs.all_abis && '["arm64-v8a","armeabi-v7a","x86","x86_64"]' || '["arm64-v8a"]') }}
+    timeout-minutes: 240
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_TARGET_DIR: ${{ github.workspace }}/.local/ci-target
       HORIZON_TELEMETRY_URL: 'off'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          persist-credentials: false
-      - name: Restore dedicated dev signing identity
-        env:
-          DEV_KEYSTORE: ${{ secrets.ANDROID_DEV_KEYSTORE_BASE64 }}
+      - name: Prevent Dev version downgrade on workflow re-runs
+        if: ${{ (github.event_name == 'push' || inputs.build_type == 'Dev Builds') && github.run_attempt > 1 }}
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import base64, os
-          from pathlib import Path
-          value = os.environ.get('DEV_KEYSTORE', '')
-          if not value:
-              raise SystemExit('Set ANDROID_DEV_KEYSTORE_BASE64 first; see docs/android-dev-builds.md')
-          path = Path('.local/android/debug.keystore')
-          path.parent.mkdir(parents=True, exist_ok=True)
-          path.write_bytes(base64.b64decode(value, validate=True))
-          path.chmod(0o600)
-          PY
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+          echo "::error::Re-running an old Dev workflow keeps the same run number and could produce a lower version. Start a new workflow run instead."
+          exit 1
+
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
-          java-version: '25'
-      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+          java-version: '17'
+
+      - name: Install pinned Rust toolchain and Android targets
+        shell: bash
+        run: |
+          rustup toolchain install 1.95.0 --profile minimal --component clippy --component rustfmt
+          rustup default 1.95.0
+          rustup target add \
+            aarch64-linux-android \
+            armv7-linux-androideabi \
+            i686-linux-android \
+            x86_64-linux-android
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358"
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           gradle-version: '8.14'
-      - name: Install Android toolchain
-        env:
-          ABI: ${{ matrix.abi }}
-        run: |
-          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          if [[ ! -x "$sdkmanager" ]]; then
-            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' | sort -V | tail -n 1)
-          fi
-          test -x "$sdkmanager"
-          "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;28.2.13676358'
-          rustup show
-          case "$ABI" in
-            arm64-v8a) target=aarch64-linux-android ;;
-            armeabi-v7a) target=armv7-linux-androideabi ;;
-            x86) target=i686-linux-android ;;
-            x86_64) target=x86_64-linux-android ;;
-          esac
-          rustup target add "$target"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             .local/ci-target
-          key: android-dev-${{ runner.os }}-${{ matrix.abi }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'packaging/android/build.gradle') }}-${{ github.sha }}
+          key: android-${{ runner.os }}-${{ inputs.abi }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'packaging/android/build.gradle') }}
           restore-keys: |
-            android-dev-${{ runner.os }}-${{ matrix.abi }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'packaging/android/build.gradle') }}-
-      - name: Check public source and packaging boundaries
+            android-${{ runner.os }}-${{ inputs.abi }}-
+
+      - name: Prepare pinned Minecraft engine data
+        run: python tools/android_prepare.py --java-home "$JAVA_HOME"
+
+      - name: Bump public version
+        id: bump
+        if: inputs.build_type == 'Public Builds'
+        shell: bash
         run: |
-          python3 tools/check_public_tree.py
-          python3 -m unittest discover -s tests -p 'test_android_release_audit.py'
-      - name: Prepare private engine inputs from official downloads
-        run: python3 tools/android_prepare.py --java-home "$JAVA_HOME"
-      - name: Build optimized public dev APK
-        env:
-          ABI: ${{ matrix.abi }}
-        run: |
-          python3 tools/android_build.py --abi "$ABI" --public --profile release \
-            --sdk "$ANDROID_HOME" --java-home "$JAVA_HOME_17_X64" --gradle "$(command -v gradle)" \
-            --ndk-version 28.2.13676358 --build-tools-version 35.0.0 \
-            --dev-build "${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:12}" \
-            --dev-version-code "$((1000 + GITHUB_RUN_NUMBER))"
-      - name: Collect only audited APK and public metadata
-        env:
-          ABI: ${{ matrix.abi }}
-        run: |
-          python3 - <<'PY'
-          import hashlib, json, os, shutil
+          if [[ "$GITHUB_REF_TYPE" != "branch" ]]; then
+            echo "::error::Public Builds must be run from a branch so the version bump can be committed."
+            exit 1
+          fi
+
+          python - <<'PY'
+          import os
+          import re
           from pathlib import Path
-          out = Path('dist')
-          out.mkdir()
-          sha, abi = os.environ['GITHUB_SHA'], os.environ['ABI']
-          name = f'Horizon-Android-dev.{os.environ["GITHUB_RUN_NUMBER"]}.{sha[:12]}-{abi}.apk'
-          apk = out / name
-          shutil.copyfile(Path('.local/android/apk') / abi / 'horizon-android-public.apk', apk)
-          (out / 'SHA256SUMS.txt').write_text(f'{hashlib.sha256(apk.read_bytes()).hexdigest()}  {name}\n')
-          for source, dest in [('LICENSE', 'LICENSE.txt'), ('THIRD_PARTY_NOTICES.md', 'THIRD_PARTY_NOTICES.md')]:
-              shutil.copyfile(source, out / dest)
-          (out / 'BUILD.json').write_text(json.dumps({'commit': sha, 'abi': abi, 'profile': 'release',
-              'package': 'dev.horizon.android.dev', 'experimental': True,
-              'run': f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/actions/runs/{os.environ["GITHUB_RUN_ID"]}'}, indent=2) + '\n')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write(f'### Dev APK: {abi}\n\nCommit: `{sha}`. Optimized release profile; experimental build.\n\n'
-                  'Download the APK artifact below. Installs separately from the stable app. '
-                  'Existing worlds/accounts are not copied automatically.\n')
+
+          gradle_path = Path("packaging/android/build.gradle")
+          rust_path = Path("crates/horizon-client/src/android_main.rs")
+          gradle = gradle_path.read_text(encoding="utf-8")
+          rust = rust_path.read_text(encoding="utf-8")
+
+          code_pattern = re.compile(
+              r"(?m)^([ \t]*versionCode[ \t]+providers\.gradleProperty\('devVersionCode'\)\.getOrElse\(')(\d+)('\)\.toInteger\(\)[ \t]*$)"
+          )
+          name_pattern = re.compile(
+              r"(?m)^([ \t]*versionName[ \t]+['\"])(\d+\.\d+\.\d+)(['\"]\s*\+.*)$"
+          )
+          code_match = code_pattern.search(gradle)
+          name_match = name_pattern.search(gradle)
+          if code_match is None or name_match is None:
+              raise SystemExit("Could not find the Gradle versionCode fallback and SemVer versionName")
+
+          old_code = int(code_match.group(2))
+          old_version = name_match.group(2)
+          major, minor, patch = (int(part) for part in old_version.split("."))
+          new_version = f"{major}.{minor}.{patch + 1}"
+          new_code = old_code + 1
+          if new_code > 2_100_000_000:
+              raise SystemExit("Android versionCode exceeded the supported maximum")
+
+          gradle = code_pattern.sub(
+              lambda match: f"{match.group(1)}{new_code}{match.group(3)}", gradle, count=1
+          )
+          gradle = name_pattern.sub(
+              lambda match: f"{match.group(1)}{new_version}{match.group(3)}", gradle, count=1
+          )
+
+          rust_pattern = re.compile(
+              r'(pub const VERSION: &str = if crate::PUBLIC_BUILD\s*\{\s*)'
+              r'"[^\"]+"'
+              r'(\s*\}\s*else\s*\{\s*)'
+              r'"[^\"]+"'
+              r'(\s*\};)'
+          )
+          rust, rust_count = rust_pattern.subn(
+              lambda match: (
+                  f'{match.group(1)}"{new_version}"'
+                  f'{match.group(2)}"{new_version}-dev"'
+                  f'{match.group(3)}'
+              ),
+              rust,
+              count=1,
+          )
+          if rust_count != 1:
+              raise SystemExit("Could not find the Android backend PUBLIC_BUILD version block in android_main.rs")
+
+          gradle_path.write_text(gradle, encoding="utf-8")
+          rust_path.write_text(rust, encoding="utf-8")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"version_name={new_version}\n")
+              output.write(f"version_code={new_code}\n")
+
+          print(f"Public version bumped: {old_version} ({old_code}) -> {new_version} ({new_code})")
           PY
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+
+      - name: Commit public version bump
+        if: inputs.build_type == 'Public Builds'
+        env:
+          VERSION_NAME: ${{ steps.bump.outputs.version_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/android/build.gradle crates/horizon-client/src/android_main.rs
+          git commit -m "chore(android): bump public version to ${VERSION_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Prepare temporary development version
+        if: ${{ github.event_name == 'push' || inputs.build_type == 'Dev Builds' }}
+        env:
+          DEV_BUILD_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          build_number = int(os.environ["DEV_BUILD_NUMBER"])
+          gradle_path = Path("packaging/android/build.gradle")
+          rust_path = Path("crates/horizon-client/src/android_main.rs")
+          gradle = gradle_path.read_text(encoding="utf-8")
+          rust = rust_path.read_text(encoding="utf-8")
+
+          name_pattern = re.compile(
+              r"(?m)^([ \t]*versionName[ \t]+['\"])(\d+\.\d+\.\d+)(['\"]\s*\+.*)$"
+          )
+          name_match = name_pattern.search(gradle)
+          if name_match is None:
+              raise SystemExit("Could not find a SemVer versionName in build.gradle")
+
+          base_version = name_match.group(2)
+          new_dev_version = f"{base_version}-dev.{build_number}"
+          rust_pattern = re.compile(
+              r'(pub const VERSION: &str = if crate::PUBLIC_BUILD\s*\{\s*)'
+              r'("[^\"]+")'
+              r'(\s*\}\s*else\s*\{\s*)'
+              r'"[^\"]+"'
+              r'(\s*\};)'
+          )
+          rust, rust_count = rust_pattern.subn(
+              lambda match: (
+                  f"{match.group(1)}{match.group(2)}"
+                  f'{match.group(3)}"{new_dev_version}"{match.group(4)}'
+              ),
+              rust,
+              count=1,
+          )
+          if rust_count != 1:
+              raise SystemExit("Could not find the Android backend PUBLIC_BUILD version block in android_main.rs")
+
+          rust_path.write_text(rust, encoding="utf-8")
+          print(f"Temporary Dev version: {new_dev_version}; no repository commit will be created")
+          PY
+
+      - name: Restore generated Android signing key from GitHub Actions cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          name: horizon-dev-${{ github.run_number }}-${{ matrix.abi }}
-          path: dist/
+          path: .local/android/debug.keystore
+          key: horizon-android-signing-${{ github.repository_id }}
+
+      - name: Build public release APK
+        if: inputs.build_type == 'Public Builds'
+        env:
+          ABI: ${{ inputs.abi || 'arm64-v8a' }}
+          HORIZON_ANDROID_BUILD_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [[ "$ABI" == "All In One arch" ]]; then
+            ABIS=(arm64-v8a x86_64 armeabi-v7a x86)
+          elif [[ "$ABI" == "32 + 64 arm" ]]; then
+            ABIS=(arm64-v8a armeabi-v7a)
+          else
+            ABIS=("$ABI")
+          fi
+
+          for ABI in "${ABIS[@]}"; do
+            echo "::group::Building Public APK for $ABI"
+
+            python tools/android_build.py \
+              --abi "$ABI" \
+              --public \
+              --profile release \
+              --sdk "$ANDROID_HOME" \
+              --java-home "$JAVA_HOME" \
+              --gradle "$(command -v gradle)" \
+              --ndk-version 28.2.13676358 \
+              --build-tools-version 35.0.0
+
+            echo "::endgroup::"
+          done
+
+      - name: Build development APK
+        if: ${{ github.event_name == 'push' || inputs.build_type == 'Dev Builds' }}
+        env:
+          ABI: ${{ inputs.abi || 'arm64-v8a' }}
+          DEV_BUILD_NUMBER: ${{ github.run_number }}
+          HORIZON_ANDROID_BUILD_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [[ "$ABI" == "All In One arch" ]]; then
+            ABIS=(arm64-v8a x86_64 armeabi-v7a x86)
+          elif [[ "$ABI" == "32 + 64 arm" ]]; then
+            ABIS=(arm64-v8a armeabi-v7a)
+          else
+            ABIS=("$ABI")
+          fi
+
+          for ABI in "${ABIS[@]}"; do
+            echo "::group::Building Dev APK for $ABI"
+
+            python tools/android_build.py \
+              --abi "$ABI" \
+              --public \
+              --profile release \
+              --dev-build "$DEV_BUILD_NUMBER" \
+              --dev-version-code "$((1000000000 + DEV_BUILD_NUMBER))" \
+              --sdk "$ANDROID_HOME" \
+              --java-home "$JAVA_HOME" \
+              --gradle "$(command -v gradle)" \
+              --ndk-version 28.2.13676358 \
+              --build-tools-version 35.0.0
+
+            echo "::endgroup::"
+          done
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: horizon-android-${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'Public Builds' && 'public' || 'dev' }}-${{ inputs.abi == 'All In One arch' && 'all-arch' || inputs.abi == '32 + 64 arm' && 'arm32-arm64' || inputs.abi || 'arm64-v8a' }}-apk
+          path: .local/android/apk/*/horizon-android-public.apk
           if-no-files-found: error
-          retention-days: 14
-      - name: Remove signing key
-        if: always()
-        run: rm -f .local/android/debug.keystore
+          retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.build_type == 'Public Builds' && 30 || 14 }}
