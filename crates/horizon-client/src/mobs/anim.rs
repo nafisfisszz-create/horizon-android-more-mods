@@ -286,6 +286,12 @@ impl Poses {
                 }
             }
             for (name, pose) in &hierarchical {
+                // A top-level part has the same key in both maps. Its current
+                // named pose must win; the hierarchical snapshot can be stale
+                // relative to the vanilla pose or an earlier CEM binding.
+                if current.contains_key(name) {
+                    continue;
+                }
                 for (channel, index) in [
                     ("tx", 0), ("ty", 1), ("tz", 2),
                     ("rx", 3), ("ry", 4), ("rz", 5),
