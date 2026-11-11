@@ -426,6 +426,12 @@ fn find_cem_part_mut<'a>(part: &'a mut Part, name: &str) -> Option<&'a mut Part>
     None
 }
 
+fn cem_player_part_alias(name: &str) -> &str {
+    // Fresh Animations calls the vanilla PlayerModel hat layer "headwear".
+    // Horizon's baked player model follows the vanilla field name "hat".
+    if name == "headwear" { "hat" } else { name }
+}
+
 fn attach_player_cem_models(
     base: &mut Part,
     resource: &horizon_client_render::player_animation::CemResource,
@@ -440,22 +446,35 @@ fn attach_player_cem_models(
     };
     for source in models {
         let part_name = source["part"].as_str().unwrap_or("root");
-        let attach = source["attach"].as_bool().unwrap_or(true);
-        let Some(custom) = build_cem_part(source, texture_size, modules, 0) else {
+        let Some(mut custom) = build_cem_part(source, texture_size, modules, 0) else {
             continue;
         };
-        let parent = if part_name == "root" {
+
+        // Animation-only JPMs (variables, idle, movement, equipment) resolve to
+        // empty model nodes. They contribute bindings, not render geometry.
+        if custom.polygons.is_empty() && custom.children.is_empty() {
+            continue;
+        }
+
+        let target_name = cem_player_part_alias(part_name);
+        custom.name = cem_player_part_alias(&custom.name).to_owned();
+        let parent = if target_name == "root" {
             Some(&mut *base)
         } else {
-            find_cem_part_mut(base, part_name)
+            find_cem_part_mut(base, target_name)
         };
         let Some(parent) = parent else {
             continue;
         };
-        if !attach {
-            parent.polygons.clear();
-        }
-        parent.children.push(custom);
+
+        // JEM part entries describe replacement model parts. Appending them as
+        // children leaves the vanilla cubes underneath, producing doubled
+        // limbs/torso and applying the CEM translation in the wrong hierarchy.
+        // Replace the part's transform and cubes while retaining unrelated
+        // vanilla children (for example the separate hat layer).
+        parent.pose = custom.pose;
+        parent.polygons = custom.polygons;
+        parent.children.extend(custom.children);
     }
 }
 

@@ -241,6 +241,11 @@ fn rewrite_expression_references(
                 && (token.starts_with("part.") || token.starts_with("part:"))
             {
                 format!("{part}{}", &token[4..])
+            } else if token == "headwear"
+                || token.starts_with("headwear.")
+                || token.starts_with("headwear:")
+            {
+                format!("hat{}", &token["headwear".len()..])
             } else {
                 token
             };
@@ -266,7 +271,14 @@ fn rewrite_binding_target(
             return format!("{replacement}{suffix}");
         }
     }
-    target.to_owned()
+    if target == "headwear"
+        || target.starts_with("headwear.")
+        || target.starts_with("headwear:")
+    {
+        format!("hat{}", &target["headwear".len()..])
+    } else {
+        target.to_owned()
+    }
 }
 
 fn collect_animation_bindings(value: &Value, out: &mut Vec<(String, String)>) {
