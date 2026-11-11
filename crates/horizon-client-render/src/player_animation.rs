@@ -616,7 +616,12 @@ impl ExpressionParser<'_> {
                         "pi" | "PI" => std::f64::consts::PI,
                         "true" => 1.0,
                         "false" => 0.0,
-                        _ => *self.context.variables.get(&name).ok_or_else(|| format!("unknown CEM variable: {name}"))?,
+                        _ => match self.context.variables.get(&name) {
+                            Some(value) => *value,
+                            // OptiFine CEM user variables start at zero until their first assignment.
+                            None if name.starts_with("var.") || name.starts_with("varb.") => 0.0,
+                            None => return Err(format!("unknown CEM variable: {name}")),
+                        },
                     }
                 }
             }
@@ -784,6 +789,7 @@ mod expression_tests {
         assert_eq!(evaluate_expression("min(5, 2, 7)", &c).unwrap(), 2.0);
         assert_eq!(evaluate_expression("between(3, 1, 4)", &c).unwrap(), 1.0);
         assert_eq!(evaluate_expression("var.counter + 1", &c).unwrap(), 1.0);
+        assert_eq!(evaluate_expression("varb.flag ? 1 : 0", &c).unwrap(), 0.0);
         let mut hierarchical = c.clone();
         hierarchical.variables.insert("head:hand.rx".into(), 0.75);
         assert_eq!(
