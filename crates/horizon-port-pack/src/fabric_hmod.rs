@@ -159,6 +159,11 @@ mod tests {
         assert_eq!(package.manifest.id, "sample_mod");
         assert_eq!(package.manifest.api, "0.2");
         assert!(package.wasm.is_none());
+        // Validate the package through the same content loader Horizon uses,
+        // not just the ZIP/manifest reader.
+        let content = horizon_mods::Content::read(&output, &package.manifest).unwrap();
+        assert_eq!(content.files.len(), 3);
+        assert!(content.namespaces.contains(&"sample-mod".to_owned()));
         let mut archive = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
         assert!(archive.by_name("assets/sample-mod/lang/en_us.json").is_ok());
         assert!(archive.by_name("com/example/Entrypoint.class").is_err());
