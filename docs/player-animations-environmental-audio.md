@@ -117,3 +117,19 @@ References:
 ### Revised implementation gate
 
 Before coding the parser, inspect representative Player Extension files supplied for local compatibility testing, including player .jem, .jpm, and animation expressions. Without representative real files, parser compatibility cannot be verified and should not be advertised. The implementation must be built against Horizon's actual player renderer path, not guessed from the mod API.
+
+
+## Supplied Player Extension v1.1 archive audit
+
+Inspected locally supplied archive `FA+Player-v1.1.zip` (2026-11-11). This is a format audit only; the archive has not been copied into the repository.
+
+- The pack contains separate `player.jem` and `player_slim.jem` entry points, plus cape and elytra model files.
+- The player entry points compose five `.jpm` animation modules: variables, idle, equipment, movement, and first-person. The archive also includes version-specific `a_player_variables.jpm` variants under `21-2/` and `21-5/` directories.
+- The main player model references `player_face.jpm`, but that file is not present in this supplied archive. It appears to be an external dependency or omitted companion asset; this must be resolved from the user's complete pack set before claiming the model is self-contained.
+- Across the supplied JEM/JPM files, the audit counted 725 expression assignments and about 96 KB of expression text. The expressions use at least these functions: `abs`, `between`, `clamp`, `cos`, `exp`, `if`, `in`, `max`, `min`, `nbt`, `pow`, `random`, `round`, `sin`, `sqrt`, `todeg`, `torad`, and `wraprad`.
+- The expressions depend on a broad runtime state surface: player movement and pose, limb/head/body transforms, held-item and equipment checks, first-person state, swimming/underwater/gliding/climbing, timing variables, and item NBT predicates. A parser alone is insufficient: Horizon must provide compatible variable semantics, expression evaluation, model hierarchy transforms, and the required player render integration.
+- The regular and slim player entry files currently have the same file size and animation structure in this archive; both still need independent geometry/skin-layout validation.
+
+### Consequence for implementation
+
+Do not start by translating these expressions into a hand-written list of hardcoded poses. The correct compatibility path is a bounded CEM/EMF subset: parse JEM/JPM hierarchy and animation maps, implement a tested expression parser/evaluator for the functions and operators actually used, then map each referenced runtime variable to authoritative Horizon player state. Unknown functions, missing dependencies, malformed expressions, or unsupported model features must trigger a safe vanilla fallback. First resolve the missing `player_face.jpm` dependency and inspect the actual Horizon player renderer before selecting implementation files.
