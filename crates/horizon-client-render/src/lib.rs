@@ -73,6 +73,7 @@ pub mod pack_screen;
 pub mod packs;
 pub mod par;
 pub mod particles;
+pub mod player_animation;
 pub mod poi_sections;
 pub mod post_chain;
 pub mod post_glsl;
