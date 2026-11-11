@@ -171,7 +171,71 @@ impl Poses {
     pub fn is_hidden(&self, part: &Part) -> bool {
         self.hidden.contains(&part.name)
     }
+
+    /// Apply the supported CEM transform channels after the vanilla player pose.
+    /// Unknown variables, missing parts and unsupported channels are rejected
+    /// rather than silently producing a partially animated model.
+    pub fn apply_cem_animation(
+        &mut self,
+        resource: &horizon_client_render::player_animation::CemResource,
+        context: &horizon_client_render::player_animation::ExpressionContext,
+    ) -> Result<(), String> {
+        use std::collections::BTreeMap;
+
+        let bindings: BTreeMap<String, String> =
+            resource.animation_bindings.iter().cloned().collect();
+        let base_poses: BTreeMap<String, [f32; 9]> =
+            self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
+        let evaluated =
+            horizon_client_render::player_animation::evaluate_pose_expressions(
+                &bindings,
+                &base_poses,
+                context,
+            )?;
+        for (name, pose) in evaluated {
+            if let Some(current) = self.map.get_mut(&name) {
+                *current = pose.pose;
+            }
+        }
+        Ok(())
+    }
 }
+#[cfg(test)]
+mod cem_pose_integration_tests {
+    use super::*;
+    use horizon_client_render::player_animation::{CemResource, ExpressionContext};
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn cem_animation_overrides_only_assigned_channels_after_vanilla_pose() {
+        let mut poses = Poses {
+            map: BTreeMap::from([
+                ("head".to_owned(), [0.0, 2.0, 0.0, 0.1, 0.0, 0.0, 1.0, 1.0, 1.0]),
+            ]).into_iter().collect(),
+            ..Default::default()
+        };
+        let resource = CemResource {
+            document: json!({}),
+            expressions: Vec::new(),
+            animation_bindings: vec![
+                ("head.rx".to_owned(), "age * 0.1".to_owned()),
+                ("head.ty".to_owned(), "3".to_owned()),
+            ],
+            model_nodes: 0,
+        };
+        let context = ExpressionContext {
+            variables: BTreeMap::from([("age".to_owned(), 2.0)]),
+        };
+
+        poses.apply_cem_animation(&resource, &context).unwrap();
+        let head = poses.map.get("head").unwrap();
+        assert_eq!(head[1], 3.0);
+        assert_eq!(head[3], 0.2);
+        assert_eq!(head[6], 1.0);
+    }
+}
+
 /// The LivingEntityRenderState values setupAnim reads.
 #[derive(Clone, Copy, Debug)]
 pub struct State {
