@@ -1,42 +1,98 @@
 {
   "forest.day": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/forest_day", "attenuation_distance": 24 }
+      {
+        "name": "peugaria_audio:ambient/forest_day_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/forest_day_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "forest.night": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/forest_night", "attenuation_distance": 24 }
+      {
+        "name": "peugaria_audio:ambient/forest_night_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/forest_night_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "rain": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/rain", "attenuation_distance": 24 }
+      {
+        "name": "peugaria_audio:ambient/rain_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/rain_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "cave": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/cave", "attenuation_distance": 20 }
+      {
+        "name": "peugaria_audio:ambient/cave_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/cave_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "beach": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/beach", "attenuation_distance": 28 }
+      {
+        "name": "peugaria_audio:ambient/beach_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/beach_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "underwater": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/underwater", "attenuation_distance": 18 }
+      {
+        "name": "peugaria_audio:ambient/underwater_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/underwater_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "nether": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/nether", "attenuation_distance": 24 }
+      {
+        "name": "peugaria_audio:ambient/nether_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/nether_b",
+        "attenuation_distance": 24
+      }
     ]
   },
   "the_end": {
     "sounds": [
-      { "name": "peugaria_audio:ambient/the_end", "attenuation_distance": 24 }
+      {
+        "name": "peugaria_audio:ambient/the_end_a",
+        "attenuation_distance": 24
+      },
+      {
+        "name": "peugaria_audio:ambient/the_end_b",
+        "attenuation_distance": 24
+      }
     ]
   }
 }
