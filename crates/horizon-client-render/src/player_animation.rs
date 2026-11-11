@@ -475,7 +475,7 @@ pub fn evaluate_pose_expressions(
         }
         let (part, channel) = binding.rsplit_once('.')
             .ok_or_else(|| format!("invalid CEM pose binding: {binding}"))?;
-        if part.is_empty() || part.contains('/') || part.contains('\\\\') {
+        if part.is_empty() || part.contains('/') || part.contains('\\') {
             return Err(format!("invalid CEM part name in binding: {binding}"));
         }
         let index = match channel {
