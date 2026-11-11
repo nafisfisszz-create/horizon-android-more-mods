@@ -895,6 +895,37 @@ mod expression_tests {
     }
 
     #[test]
+    fn evaluates_fresh_animations_pose_nbt_predicates() {
+        let context = ExpressionContext {
+            variables: [
+                ("cem.nbt.sleeping".into(), 1.0),
+                ("cem.nbt.main_map".into(), 1.0),
+                ("cem.nbt.flying".into(), 1.0),
+            ]
+            .into(),
+        };
+        assert_eq!(evaluate_expression("nbt(SleepingX, exists:true)", &context).unwrap(), 1.0);
+        assert_eq!(evaluate_expression("nbt(sleeping_pos, exists:true)", &context).unwrap(), 1.0);
+        assert_eq!(
+            evaluate_expression(
+                "nbt(SelectedItem.id, raw:iregex:.*filled_map.*)",
+                &context,
+            )
+            .unwrap(),
+            1.0,
+        );
+        assert_eq!(
+            evaluate_expression(
+                "nbt(SelectedItem.id, raw:iregex:.*shield.*)",
+                &context,
+            )
+            .unwrap(),
+            0.0,
+        );
+        assert_eq!(evaluate_expression("nbt(abilities.flying, 1)", &context).unwrap(), 1.0);
+    }
+
+    #[test]
     fn rejects_unknown_inputs_and_division_by_zero() {
         let c = context();
         assert!(evaluate_expression("unknown_var + 1", &c).is_err());
