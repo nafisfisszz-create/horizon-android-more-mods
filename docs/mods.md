@@ -29,6 +29,13 @@ the reason in the log.
 
 Benchmarks (`--benchmark`) never load mods.
 
+Client code mods may opt into the experimental `sound` capability in their manifest
+(`capabilities = ["sound"]` and `experimental = ["sound"]`). It can play registered
+sound-event IDs locally, either at a world position or relative to the listener.
+The host clamps volume and pitch, accepts at most four requests per hook call and
+eight per second, and never treats an event ID as a filesystem path. The current
+API is one-shot: it does not expose looping playback or custom audio-file loading.
+
 ## Making a content mod
 
 ```sh
