@@ -24,3 +24,8 @@ The next compatibility work must map individual Fabric API surfaces to Horizon-n
 ## Source and licence note
 
 The uploaded Fabric Loader source is an architectural reference. This implementation is independently written against Fabric's metadata format and does not copy Fabric Loader implementation code. Preserve upstream notices and Apache-2.0 attribution if future work adapts code from that project.
+
+
+## HMOD porting workflow
+
+The supported content-only path and the Java behavior boundary are documented in [fabric-hmod-workflow.md](fabric-hmod-workflow.md). A successful scan is not an HMOD build; resource/data files must be selected and adapted, and Java behavior must be ported separately.
