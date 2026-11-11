@@ -1,0 +1,9 @@
+id = "peugaria_audio"
+name = "PÈUGARIA Environmental Audio"
+version = "0.1.0"
+description = "Procedural ambient sound layers for day, night, caves, rain, beaches, underwater and other dimensions."
+authors = ["PÈUGARIA STUDIO"]
+api = "0.2"
+side = "client"
+capabilities = ["registries", "game-read", "sound"]
+experimental = ["sound"]

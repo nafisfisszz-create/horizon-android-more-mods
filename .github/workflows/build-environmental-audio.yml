@@ -1,0 +1,42 @@
+name: Build PÈUGARIA Environmental Audio
+
+on:
+  push:
+    branches: [android]
+    paths:
+      - 'Cargo.toml'
+      - 'crates/horizon-mod-sdk/**'
+      - 'crates/horizon-mods/**'
+      - 'crates/cargo-horizon-mod/**'
+      - '.github/workflows/build-environmental-audio.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install audio encoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Generate original ambience assets
+        working-directory: crates/horizon-mod-sdk/examples/environmental-audio
+        run: python3 generate_audio.py
+      - name: Test scene selection
+        run: cargo test -p peugaria-environmental-audio
+      - name: Build .hmod
+        working-directory: crates/horizon-mod-sdk/examples/environmental-audio
+        run: cargo run --manifest-path ../../../../crates/cargo-horizon-mod/Cargo.toml -- build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peugaria-environmental-audio-hmod
+          path: target/horizon-mod/peugaria_audio.hmod
+          if-no-files-found: error
+          retention-days: 14

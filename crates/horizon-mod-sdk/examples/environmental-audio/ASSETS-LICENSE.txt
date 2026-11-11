@@ -1,0 +1,4 @@
+The generated ambient sound assets in this mod are original procedural synthesis
+created specifically for PÈUGARIA Environmental Audio. They are not recordings
+or samples copied from third parties. The generated assets are dedicated to
+the public domain under CC0 1.0 Universal.
