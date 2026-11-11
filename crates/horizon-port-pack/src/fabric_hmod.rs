@@ -27,6 +27,7 @@ pub fn extract_to_hmod(jar: &Path, output: &Path) -> Result<ExtractReport, Strin
     }
 
     let metadata = crate::fabric::read_jar(jar)?;
+    let id = metadata.id.replace('-', "_");
     let file = fs::File::open(jar).map_err(|e| format!("{}: {e}", jar.display()))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
 
@@ -77,7 +78,7 @@ pub fn extract_to_hmod(jar: &Path, output: &Path) -> Result<ExtractReport, Strin
             return Err(format!("{name}: ZIP entry size mismatch or truncated content"));
         }
         total += size;
-        if !matches!(namespace, "minecraft" | "c") && namespace != metadata.id {
+        if !matches!(namespace, "minecraft" | "c") && namespace != id {
             namespaces.insert(namespace.to_owned());
         }
         files.push((name, bytes));
@@ -87,7 +88,6 @@ pub fn extract_to_hmod(jar: &Path, output: &Path) -> Result<ExtractReport, Strin
         return Err("no portable assets/ or data/ files found in this JAR".into());
     }
 
-    let id = metadata.id.replace('-', "_");
     let name = if metadata.name.trim().is_empty() { metadata.id.clone() } else { metadata.name.clone() };
     let version = if metadata.version.trim().is_empty() { "0.1.0".to_owned() } else { metadata.version.clone() };
     let toml_string = |value: &str| serde_json::to_string(value).expect("string serialization cannot fail");
