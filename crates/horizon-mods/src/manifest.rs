@@ -563,7 +563,7 @@ capabilities = ["game-read", "hud"]
         )).unwrap_err();
         assert!(sound.contains("experimental = [\"sound\"]"), "{sound}");
         let sound = Manifest::parse(&format!(
-            "{base}capabilities = [\"sound\"]\\nexperimental = [\"sound\"]\\n"
+            "{base}capabilities = [\"sound\"]\nexperimental = [\"sound\"]\n"
         )).unwrap();
         assert!(sound.capabilities.contains(&Capability::Sound));
         assert_eq!(m.experimental, [Capability::Ui]);
