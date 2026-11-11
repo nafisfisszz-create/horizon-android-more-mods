@@ -105,6 +105,8 @@ impl AnimState {
 #[derive(Clone, Default)]
 pub struct Poses {
     map: HashMap<String, [f32; 9]>,
+    /// CEM hierarchical names (for example head:upper_arm:hand) to render part ids.
+    aliases: HashMap<String, String>,
     dummy: [f32; 9],
     /// Parts with `skipDraw` set: their own cubes are not drawn, children are.
     skipped: std::collections::HashSet<String>,
@@ -120,18 +122,34 @@ impl Poses {
     /// Refills this for another model, keeping the map and the sets' capacity:
     /// a mob draws its body and every equipment layer each frame.
     pub fn reset(&mut self, model: &Part) {
-        fn walk(p: &Part, map: &mut HashMap<String, [f32; 9]>) {
+        fn walk(
+            part: &Part,
+            map: &mut HashMap<String, [f32; 9]>,
+            aliases: &mut HashMap<String, String>,
+            parent_path: &str,
+        ) {
             // ModelPart.createPartLookup fills its map with putIfAbsent: the first part keeps a name.
-            map.entry(p.name.clone()).or_insert(p.pose);
-            for c in &p.children {
-                walk(c, map);
+            map.entry(part.name.clone()).or_insert(part.pose);
+            let path = if parent_path.is_empty() {
+                if part.name == "root" { String::new() } else { part.name.clone() }
+            } else if part.name.is_empty() {
+                parent_path.to_owned()
+            } else {
+                format!("{parent_path}:{}", part.name)
+            };
+            if !path.is_empty() {
+                aliases.entry(path.clone()).or_insert_with(|| part.name.clone());
+            }
+            for child in &part.children {
+                walk(child, map, aliases, &path);
             }
         }
         self.map.clear();
+        self.aliases.clear();
         self.dummy = [0.0; 9];
         self.skipped.clear();
         self.hidden.clear();
-        walk(model, &mut self.map);
+        walk(model, &mut self.map, &mut self.aliases, "");
     }
     pub fn get(&mut self, name: &str) -> &mut [f32; 9] {
         match self.map.get_mut(name) {
@@ -223,9 +241,13 @@ impl Poses {
             let Some((part, channel)) = target.rsplit_once('.') else {
                 continue;
             };
-            if !current.contains_key(part) {
+            let Some(canonical_part) = current
+                .contains_key(part)
+                .then(|| part.to_owned())
+                .or_else(|| self.aliases.get(part).cloned())
+            else {
                 continue;
-            }
+            };
             if channel == "visible" || channel == "visible_boxes" {
                 if let Ok(value) =
                     horizon_client_render::player_animation::evaluate_expression(
@@ -234,9 +256,9 @@ impl Poses {
                     )
                 {
                     if channel == "visible" {
-                        self.visible(part, value != 0.0);
+                        self.visible(&canonical_part, value != 0.0);
                     } else {
-                        self.visible_boxes(part, value != 0.0);
+                        self.visible_boxes(&canonical_part, value != 0.0);
                     }
                     applied += 1;
                 }
@@ -245,7 +267,8 @@ impl Poses {
             if !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz") {
                 continue;
             }
-            let one = BTreeMap::from([(target.clone(), expression.clone())]);
+            let canonical_target = format!("{canonical_part}.{channel}");
+            let one = BTreeMap::from([(canonical_target, expression.clone())]);
             if let Ok(evaluated) =
                 horizon_client_render::player_animation::evaluate_pose_expressions(
                     &one, &current, &expression_context,
@@ -298,6 +321,32 @@ mod cem_pose_integration_tests {
         assert_eq!(head[1], 3.0);
         assert_eq!(head[3], 0.2);
         assert_eq!(head[6], 1.0);
+    }
+
+    #[test]
+    fn hierarchical_cem_targets_resolve_to_nested_parts() {
+        let model = Part {
+            name: "root".into(),
+            pose: [0.0; 9],
+            polygons: Vec::new(),
+            children: vec![Part {
+                name: "head".into(),
+                pose: [0.0; 9],
+                polygons: Vec::new(),
+                children: vec![Part {
+                    name: "hand".into(),
+                    pose: [0.0; 9],
+                    polygons: Vec::new(),
+                    children: Vec::new(),
+                }],
+            }],
+        };
+        let mut poses = Poses::new(&model);
+        let context = ExpressionContext::default();
+        let bindings = vec![("head:hand.rx".to_owned(), "0.75".to_owned())];
+
+        assert_eq!(poses.apply_cem_bindings(&bindings, &context), 1);
+        assert_eq!(poses.map["hand"][3], 0.75);
     }
 
     #[test]
