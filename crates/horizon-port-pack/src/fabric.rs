@@ -161,7 +161,7 @@ pub struct ModAnalysis {
 pub fn read_jar(path: &Path) -> Result<FabricMetadata, String> {
     let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut entry = zip.by_name(METADATA).map_err(|e| format!("{}: {METADATA}: {e}", path.display()))?;
+    let entry = zip.by_name(METADATA).map_err(|e| format!("{}: {METADATA}: {e}", path.display()))?;
     if entry.size() > MAX_METADATA {
         return Err(format!("{METADATA} exceeds {} KiB", MAX_METADATA / 1024));
     }
