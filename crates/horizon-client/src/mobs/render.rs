@@ -2024,20 +2024,37 @@ fn render_visible(
     let overlay = u32::from(red_overlay(m));
     let s = anim::state(m, alpha);
     let (model_key, texture) = body(m);
-    let mut model = (*m
-        .kind
-        .layer(&model_key)
-        .cloned()
-        .unwrap_or_else(|| m.kind.model.clone())).clone();
-    // Fresh Animations player CEM: attach the JEM's custom boxes and submodels
-    // to the vanilla player rig before creating per-frame poses. The face JPM
-    // is intentionally excluded by the resource loader.
-    if avatar(m)
-        && let Some(player_cem) = &data.player_cem
-    {
-        let resource = if m.slim { &player_cem.slim } else { &player_cem.normal };
-        attach_player_cem_models(&mut model, resource, &player_cem.modules);
-    }
+    // Bake Fresh Animations geometry once. Rebuilding every CEM box and
+    // recursively cloning JPM JSON on every render frame was unnecessary CPU work.
+    let cached_player_model = if avatar(m) && let Some(player_cem) = &data.player_cem {
+        let (normal, slim) = data.player_cem_models.get_or_init(|| {
+            let mut normal = m
+                .kind
+                .layer("main")
+                .cloned()
+                .unwrap_or_else(|| m.kind.model.clone());
+            let mut slim = m
+                .kind
+                .layer("player_slim#main")
+                .cloned()
+                .unwrap_or_else(|| normal.clone());
+            attach_player_cem_models(&mut normal, &player_cem.normal, &player_cem.modules);
+            attach_player_cem_models(&mut slim, &player_cem.slim, &player_cem.modules);
+            (normal, slim)
+        });
+        Some(if m.slim { slim } else { normal })
+    } else {
+        None
+    };
+    let fallback_model = cached_player_model.is_none().then(|| {
+        m.kind
+            .layer(&model_key)
+            .cloned()
+            .unwrap_or_else(|| m.kind.model.clone())
+    });
+    let model = cached_player_model
+        .or_else(|| fallback_model.as_ref())
+        .expect("player model cache or fallback must exist");
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
     if avatar(m)
