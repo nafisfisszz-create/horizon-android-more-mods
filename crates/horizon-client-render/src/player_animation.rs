@@ -38,6 +38,7 @@ pub struct PlayerModelResources {
     pub modules: BTreeMap<String, CemResource>,
     normal_animation_bindings: Vec<(String, String)>,
     slim_animation_bindings: Vec<(String, String)>,
+    variable_state: Arc<Mutex<HashMap<u32, BTreeMap<String, f64>>>>,
 }
 
 impl PlayerModelResources {
@@ -48,6 +49,36 @@ impl PlayerModelResources {
         } else {
             &self.normal_animation_bindings
         }
+    }
+
+    /// Retrieve per-entity CEM variables that persist between rendered frames.
+    pub fn variables_for_entity(&self, entity_id: u32) -> BTreeMap<String, f64> {
+        self.variable_state
+            .lock()
+            .ok()
+            .and_then(|state| state.get(&entity_id).cloned())
+            .unwrap_or_default()
+    }
+
+    /// Save only user-defined CEM variables; built-in render inputs are recalculated.
+    pub fn store_variables_for_entity(
+        &self,
+        entity_id: u32,
+        context: &ExpressionContext,
+    ) {
+        let variables = context
+            .variables
+            .iter()
+            .filter(|(name, _)| name.starts_with("var.") || name.starts_with("varb."))
+            .map(|(name, value)| (name.clone(), *value))
+            .collect();
+        let Ok(mut state) = self.variable_state.lock() else {
+            return;
+        };
+        if !state.contains_key(&entity_id) && state.len() >= 256 {
+            state.clear();
+        }
+        state.insert(entity_id, variables);
     }
 }
 
@@ -100,6 +131,7 @@ pub fn load_player_models(root: &Path) -> Result<PlayerModelResources, String> {
         modules,
         normal_animation_bindings,
         slim_animation_bindings,
+        variable_state: Arc::new(Mutex::new(HashMap::new())),
     })
 }
 
