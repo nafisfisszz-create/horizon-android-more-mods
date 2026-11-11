@@ -2027,8 +2027,12 @@ fn render_visible(
     if avatar(m)
         && let Some(player_cem) = &data.player_cem
     {
-        let context = player_cem_context(m, &s);
-        poses.apply_cem_bindings(player_cem.animation_bindings(m.slim), &context);
+        let mut context = player_cem_context(m, &s);
+        context
+            .variables
+            .extend(player_cem.variables_for_entity(m.id));
+        poses.apply_cem_bindings(player_cem.animation_bindings(m.slim), &mut context);
+        player_cem.store_variables_for_entity(m.id, &context);
     }
     let draw_body = |out: &mut Vec<Vertex>| {
         // A player or mannequin whose skin has no atlas sprite (an evicted or
