@@ -8,6 +8,8 @@ on:
     paths:
       - "crates/horizon-client-render/src/player_animation.rs"
       - "crates/horizon-client/src/mobs/anim.rs"
+      - "crates/horizon-client/src/mobs/data.rs"
+      - "crates/horizon-client/src/mobs/render.rs"
   workflow_dispatch:
     inputs:
       build_type:
