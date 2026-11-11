@@ -2038,11 +2038,11 @@ fn render_visible(
                 .layer("player_slim#main")
                 .cloned()
                 .unwrap_or_else(|| normal.clone());
-            attach_player_cem_models(&mut normal, &player_cem.normal, &player_cem.modules);
-            attach_player_cem_models(&mut slim, &player_cem.slim, &player_cem.modules);
+            attach_player_cem_models(std::sync::Arc::make_mut(&mut normal), &player_cem.normal, &player_cem.modules);
+            attach_player_cem_models(std::sync::Arc::make_mut(&mut slim), &player_cem.slim, &player_cem.modules);
             (normal, slim)
         });
-        Some(if m.slim { slim } else { normal })
+        Some(if m.slim { slim.as_ref() } else { normal.as_ref() })
     } else {
         None
     };
@@ -2052,8 +2052,8 @@ fn render_visible(
             .cloned()
             .unwrap_or_else(|| m.kind.model.clone())
     });
-    let model = cached_player_model
-        .or_else(|| fallback_model.as_ref())
+    let model: &Part = cached_player_model
+        .or_else(|| fallback_model.as_deref())
         .expect("player model cache or fallback must exist");
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
@@ -2840,6 +2840,7 @@ mod tests {
             heightmaps: Default::default(),
             animations: Default::default(),
             player_cem: None,
+            player_cem_models: Default::default(),
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -2930,6 +2931,7 @@ mod tests {
             heightmaps: Default::default(),
             animations: Default::default(),
             player_cem: None,
+            player_cem_models: Default::default(),
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -2984,6 +2986,7 @@ mod tests {
             heightmaps: Default::default(),
             animations: Default::default(),
             player_cem: None,
+            player_cem_models: Default::default(),
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
@@ -3094,6 +3097,7 @@ mod tests {
             heightmaps: Default::default(),
             animations: Default::default(),
             player_cem: None,
+            player_cem_models: Default::default(),
             biome_tags: Default::default(),
             entity_tags: Default::default(),
             villager_hats: Default::default(),
