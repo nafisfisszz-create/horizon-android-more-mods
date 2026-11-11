@@ -180,24 +180,50 @@ impl Poses {
         resource: &horizon_client_render::player_animation::CemResource,
         context: &horizon_client_render::player_animation::ExpressionContext,
     ) -> Result<(), String> {
+        self.apply_cem_bindings(&resource.animation_bindings, context);
+        Ok(())
+    }
+
+    /// Apply supported bindings from a JEM plus its referenced JPM modules.
+    /// Unsupported targets (custom bones not present in the vanilla player
+    /// model, visibility and user variables) are skipped independently.
+    pub fn apply_cem_bindings(
+        &mut self,
+        bindings: &[(String, String)],
+        context: &horizon_client_render::player_animation::ExpressionContext,
+    ) -> usize {
         use std::collections::BTreeMap;
 
-        let bindings: BTreeMap<String, String> =
-            resource.animation_bindings.iter().cloned().collect();
-        let base_poses: BTreeMap<String, [f32; 9]> =
+        let mut current: BTreeMap<String, [f32; 9]> =
             self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
-        let evaluated =
-            horizon_client_render::player_animation::evaluate_pose_expressions(
-                &bindings,
-                &base_poses,
-                context,
-            )?;
-        for (name, pose) in evaluated {
-            if let Some(current) = self.map.get_mut(&name) {
-                *current = pose.pose;
+        let mut applied = 0;
+        for (target, expression) in bindings {
+            let Some((part, channel)) = target.rsplit_once('.') else {
+                continue;
+            };
+            if !current.contains_key(part)
+                || !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz")
+            {
+                continue;
+            }
+            let one = BTreeMap::from([(target.clone(), expression.clone())]);
+            if let Ok(evaluated) =
+                horizon_client_render::player_animation::evaluate_pose_expressions(
+                    &one, &current, context,
+                )
+            {
+                for (name, pose) in evaluated {
+                    current.insert(name, pose.pose);
+                    applied += 1;
+                }
             }
         }
-        Ok(())
+        for (name, pose) in current {
+            if let Some(current) = self.map.get_mut(&name) {
+                *current = pose;
+            }
+        }
+        applied
     }
 }
 #[cfg(test)]
