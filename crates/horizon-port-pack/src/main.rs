@@ -1,25 +1,15 @@
 //! \`horizon-port-pack\`: port a Java modpack to Horizon (\`docs/modpacks.md\`).
 //!
-//! - \`import <pack> <work>\`: a \`.mrpack\`, CurseForge zip or instance folder
-//!   to \`<work>/pack.json\`.
-//! - \`inventory <work> [--offline]\`: Modrinth metadata and jar inventory.
-//! - \`fetch <work> [--from <folder>] [<mod id>...]\`: fetch mod jars.
-//! - \`carry <work> [--resources <prepared>] [<mod id>...]\`: carry over data/assets.
-//! - \`report <work>\`: write the coverage report.
-//! - \`check <jar> <out>\`: inspect one mod jar for content carry-over.
-//! - \`fabric-check <jar>\`: inspect Fabric metadata and report Java-only blockers.
-//! - \`port <pack> <work> [--from <folder>] [--resources <prepared>]\`: run the port pipeline.
-//! - \`upgrade-datapack <pack> <out> | --world <world>\`: upgrade a data pack.
-//!
-//! The work folder belongs to the user: jars and carried-over files stay
-//! there and are never uploaded or committed.
+//! Commands: import, inventory, fetch, carry, report, check, fabric-check,
+//! fabric-scan, port and upgrade-datapack. See \`docs/modpacks.md\` and
+//! \`docs/fabric-compat.md\` for details and compatibility boundaries.
 use horizon_port_pack::{fetch, inventory::Record, pipeline, upgrade};
 use std::{
     path::{Path, PathBuf},
     process::ExitCode,
 };
 
-const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
+const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -57,23 +47,8 @@ fn main() -> ExitCode {
                 for s in &c.skipped { println!("  skipped: {s}"); }
                 Ok(())
             }
-            Some("fabric-check") => {
-                let metadata = horizon_port_pack::fabric::read_jar(path(1)?)?;
-                let analysis = metadata.analyze();
-                println!("{} {} ({})", metadata.id, metadata.version, metadata.environment);
-                if !metadata.name.is_empty() { println!("name: {}", metadata.name); }
-                println!("dependencies: {}", metadata.depends.iter().map(|d| d.mod_id.as_str()).collect::<Vec<_>>().join(", "));
-                println!("entrypoint groups: {}", metadata.entrypoints.len());
-                println!("mixin configs: {}", metadata.mixins.len());
-                println!("access widener: {}", if metadata.access_widener.is_some() { "yes" } else { "no" });
-                if analysis.blockers.is_empty() {
-                    println!("compatibility: metadata-only mod; inspect content and runtime requirements next");
-                } else {
-                    println!("compatibility: Java code requires porting");
-                    for blocker in analysis.blockers { println!("  blocker: {blocker}"); }
-                }
-                Ok(())
-            }
+            Some("fabric-check") => fabric_check(path(1)?),
+            Some("fabric-scan") => fabric_scan(path(1)?),
             Some("port") => {
                 let work = path(2)?;
                 pipeline::import(path(1)?, work, log)?;
@@ -106,6 +81,76 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn fabric_check(jar: &Path) -> Result<(), String> {
+    let metadata = horizon_port_pack::fabric::read_jar(jar)?;
+    let analysis = metadata.analyze();
+    println!("{} {} ({})", metadata.id, metadata.version, metadata.environment);
+    if !metadata.name.is_empty() { println!("name: {}", metadata.name); }
+    println!("dependencies: {}", metadata.depends.iter().map(|d| d.mod_id.as_str()).collect::<Vec<_>>().join(", "));
+    println!("entrypoint groups: {}", metadata.entrypoints.len());
+    println!("mixin configs: {}", metadata.mixins.len());
+    println!("access widener: {}", if metadata.access_widener.is_some() { "yes" } else { "no" });
+    if analysis.blockers.is_empty() {
+        println!("compatibility: metadata-only mod; inspect content and runtime requirements next");
+    } else {
+        println!("compatibility: Java code requires porting");
+        for blocker in analysis.blockers { println!("  blocker: {blocker}"); }
+    }
+    Ok(())
+}
+
+/// Scans JARs directly inside a folder; it never extracts or executes their contents.
+fn fabric_scan(folder: &Path) -> Result<(), String> {
+    let entries = std::fs::read_dir(folder)
+        .map_err(|e| format!("{}: {e}", folder.display()))?;
+    let mut jars = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("jar")) {
+            jars.push(path);
+        }
+    }
+    jars.sort();
+    if jars.is_empty() {
+        return Err(format!("no .jar files found directly inside {}", folder.display()));
+    }
+
+    let mut mods = Vec::new();
+    let mut failures = Vec::new();
+    for jar in &jars {
+        match horizon_port_pack::fabric::read_jar(jar) {
+            Ok(metadata) => {
+                println!("FOUND {} {} — {}", metadata.id, metadata.version, jar.display());
+                mods.push(metadata);
+            }
+            Err(error) => {
+                eprintln!("SKIP {} — {error}", jar.display());
+                failures.push(jar.display().to_string());
+            }
+        }
+    }
+
+    let resolution = horizon_port_pack::fabric::resolve_dependencies(&mods);
+    println!("\nFabric metadata scan: {} JAR(s), {} valid mod(s), {} unreadable JAR(s)",
+        jars.len(), mods.len(), failures.len());
+    println!("Dependency order: {}", resolution.load_order.join(" -> "));
+    for id in &resolution.duplicate_ids { println!("ERROR duplicate mod id: {id}"); }
+    for (owner, dep) in &resolution.missing {
+        println!("MISSING dependency: {owner} requires {} ({})", dep.mod_id, dep.requirements.join(" OR "));
+    }
+    for (owner, dep) in &resolution.conflicts {
+        println!("CONFLICT: {owner} declares conflict with {}", dep.mod_id);
+    }
+    for id in &resolution.cyclic { println!("ERROR dependency cycle includes: {id}"); }
+    for (owner, dep) in &resolution.platform_requirements {
+        println!("PLATFORM requirement: {owner} requires {} ({}) — check against Horizon's version contract",
+            dep.mod_id, dep.requirements.join(" OR "));
+    }
+    println!("NOTE: version predicates are not evaluated; this is metadata analysis, not Java mod execution.");
+    Ok(())
 }
 
 /// Removes \`--name <value>\` from \`args\`.
