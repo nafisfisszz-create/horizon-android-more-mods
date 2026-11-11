@@ -46,4 +46,4 @@ jobs:
       - name: Test CEM player animation module
         run: cargo test -p horizon-client-render --lib player_animation
       - name: Test player pose integration
-        run: cargo test -p horizon-client --lib cem_pose_integration_tests
+        run: cargo test -p horizon-client --lib --no-default-features cem_pose_integration_tests
