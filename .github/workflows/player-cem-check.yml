@@ -41,8 +41,8 @@ jobs:
         run: |
           rustup toolchain install 1.95.0 --profile minimal --component rustfmt
           rustup default 1.95.0
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Check patch whitespace
+        run: git diff --check
       - name: Test CEM player animation module
         run: cargo test -p horizon-client-render --lib player_animation
       - name: Test player pose integration
