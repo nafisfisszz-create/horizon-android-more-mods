@@ -819,8 +819,10 @@ impl Game<'_> {
                     continue;
                 }
                 Output::Sound { event, position, volume, pitch } => {
-                    // Mods can request only registered events through the sound capability.
-                    self.audio.play_unshared(&event, position, volume, pitch);
+                    // Resolve only registered event ids; mod input is never treated as a file path.
+                    if self.audio.event_names().iter().any(|known| known == &event) {
+                        self.audio.play_unshared(&event, position, volume, pitch);
+                    }
                     continue;
                 }
                 Output::Shake { strength, seconds } => {
