@@ -429,6 +429,9 @@ struct State {
     storage_budget: u64,
     /// Sound requests accepted during the current hook call.
     sounds_queued: usize,
+    /// Rolling one-second budget, preventing tick hooks from flooding audio.
+    sound_window: Instant,
+    sounds_in_window: usize,
     limits: StoreLimits,
     world: WorldSlot,
 }
@@ -628,6 +631,8 @@ impl Mods {
             data_dir,
             storage_budget: STORAGE_WRITE_BUDGET,
             sounds_queued: 0,
+            sound_window: Instant::now(),
+            sounds_in_window: 0,
             limits: StoreLimitsBuilder::new()
                 .memory_size(MEMORY)
                 .instances(16)
@@ -1428,6 +1433,7 @@ impl sound::Host for State {
     ) -> Result<(), String> {
         const MAX_EVENT: usize = 128;
         const MAX_PER_CALL: usize = 4;
+        const MAX_PER_SECOND: usize = 8;
         let valid_part = |part: &str| {
             !part.is_empty()
                 && part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.-/".contains(&b))
@@ -1444,8 +1450,16 @@ impl sound::Host for State {
         if !volume.is_finite() || !pitch.is_finite() {
             return Err("volume and pitch must be finite numbers".into());
         }
+        let now = Instant::now();
+        if now.duration_since(self.sound_window) >= Duration::from_secs(1) {
+            self.sound_window = now;
+            self.sounds_in_window = 0;
+        }
         if self.sounds_queued >= MAX_PER_CALL {
             return Err("at most four sound requests are allowed per hook call".into());
+        }
+        if self.sounds_in_window >= MAX_PER_SECOND {
+            return Err("at most eight sound requests are allowed per second".into());
         }
         let position = position.map(|p| [p.x, p.y, p.z]);
         self.out.push(Output::Sound {
@@ -1455,6 +1469,7 @@ impl sound::Host for State {
             pitch: pitch.clamp(0.5, 2.0),
         });
         self.sounds_queued += 1;
+        self.sounds_in_window += 1;
         Ok(())
     }
 }
