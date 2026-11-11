@@ -7,7 +7,7 @@ use horizon_mod_sdk::{
     game::{Clock, Player},
 };
 
-const INTERVAL_TICKS: u64 = 180;
+const INTERVAL_TICKS: u64 = 160;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Scene {
