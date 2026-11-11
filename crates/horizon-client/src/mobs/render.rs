@@ -2552,6 +2552,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn cem_player_boxes_become_attached_renderable_parts() {
+        let resource = horizon_client_render::player_animation::CemResource {
+            document: serde_json::json!({
+                "textureSize": [64, 64],
+                "models": [{
+                    "part": "head",
+                    "id": "custom_head",
+                    "attach": true,
+                    "translate": [0, 1, 2],
+                    "rotate": [0, 90, 0],
+                    "boxes": [{
+                        "coordinates": [-1, -1, -1, 2, 2, 2],
+                        "textureOffset": [0, 0]
+                    }]
+                }]
+            }),
+            expressions: Vec::new(),
+            animation_bindings: Vec::new(),
+            model_nodes: 1,
+        };
+        let mut base = Part {
+            name: "root".into(),
+            pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            polygons: Vec::new(),
+            children: vec![Part {
+                name: "head".into(),
+                pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                polygons: Vec::new(),
+                children: Vec::new(),
+            }],
+        };
+        let modules = std::collections::BTreeMap::new();
+
+        attach_player_cem_models(&mut base, &resource, &modules);
+
+        let custom = &base.children[0].children[0];
+        assert_eq!(custom.name, "custom_head");
+        assert_eq!(custom.polygons.len(), 6);
+        assert_eq!(custom.pose[1], 1.0);
+        assert!((custom.pose[4] - std::f32::consts::FRAC_PI_2).abs() < 1.0e-6);
+        assert_eq!(custom.polygons[0].vertices[0][3], 3.0 / 64.0);
+    }
+
+    #[test]
     fn offhand_does_not_inherit_mainhand_components() {
         use crate::items::ItemStack;
         let mut extra = super::super::Extra::default();
