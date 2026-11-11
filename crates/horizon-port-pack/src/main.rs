@@ -9,7 +9,7 @@ use std::{
     process::ExitCode,
 };
 
-const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | fabric-bridge <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
+const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | fabric-scan <folder> | fabric-bridge <jar> | fabric-bytecode <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -50,6 +50,7 @@ fn main() -> ExitCode {
             Some("fabric-check") => fabric_check(path(1)?),
             Some("fabric-scan") => fabric_scan(path(1)?),
             Some("fabric-bridge") => fabric_bridge(path(1)?),
+            Some("fabric-bytecode") => fabric_bytecode(path(1)?),
             Some("port") => {
                 let work = path(2)?;
                 pipeline::import(path(1)?, work, log)?;
@@ -102,6 +103,27 @@ fn fabric_check(jar: &Path) -> Result<(), String> {
     Ok(())
 }
 
+
+
+/// Lists symbolic Java/Fabric references from class constant pools without executing bytecode.
+fn fabric_bytecode(jar: &Path) -> Result<(), String> {
+    let scan = horizon_port_pack::fabric_bytecode::scan_jar(jar)?;
+    println!("Class files scanned: {}", scan.classes_scanned);
+    println!("Fabric API references: {}", scan.fabric_api_references.len());
+    for value in &scan.fabric_api_references { println!("  {value}"); }
+    println!("Fabric Loader API references: {}", scan.loader_api_references.len());
+    for value in &scan.loader_api_references { println!("  {value}"); }
+    println!("Mixin references: {}", scan.mixin_references.len());
+    for value in &scan.mixin_references { println!("  {value}"); }
+    println!("Minecraft references: {}", scan.minecraft_references.len());
+    for value in &scan.minecraft_references { println!("  {value}"); }
+    if !scan.malformed_classes.is_empty() {
+        println!("Malformed or oversized classes: {}", scan.malformed_classes.len());
+        for value in &scan.malformed_classes { println!("  {value}"); }
+    }
+    println!("NOTE: static constant-pool scan only; reflection, generated classes and runtime behavior may be missed.");
+    Ok(())
+}
 
 /// Reports documented native-hook candidates for API modules a JAR declares.
 fn fabric_bridge(jar: &Path) -> Result<(), String> {
