@@ -145,6 +145,14 @@ impl Poses {
     pub fn skip_draw(&mut self, name: &str) {
         self.skipped.insert(name.to_owned());
     }
+    /// visible_boxes controls this part's cubes without hiding its children.
+    pub fn visible_boxes(&mut self, name: &str, visible: bool) {
+        if visible {
+            self.skipped.remove(name);
+        } else if self.map.contains_key(name) {
+            self.skipped.insert(name.to_owned());
+        }
+    }
     pub fn skips(&self, part: &Part) -> bool {
         self.skipped.contains(&part.name)
     }
@@ -196,20 +204,51 @@ impl Poses {
 
         let mut current: BTreeMap<String, [f32; 9]> =
             self.map.iter().map(|(name, pose)| (name.clone(), *pose)).collect();
+        let mut expression_context = context.clone();
         let mut applied = 0;
         for (target, expression) in bindings {
+            if target.starts_with("var.") || target.starts_with("varb.") {
+                if let Ok(value) =
+                    horizon_client_render::player_animation::evaluate_expression(
+                        expression,
+                        &expression_context,
+                    )
+                {
+                    expression_context.variables.insert(target.clone(), value);
+                    applied += 1;
+                }
+                continue;
+            }
+
             let Some((part, channel)) = target.rsplit_once('.') else {
                 continue;
             };
-            if !current.contains_key(part)
-                || !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz")
-            {
+            if !current.contains_key(part) {
+                continue;
+            }
+            if channel == "visible" || channel == "visible_boxes" {
+                if let Ok(value) =
+                    horizon_client_render::player_animation::evaluate_expression(
+                        expression,
+                        &expression_context,
+                    )
+                {
+                    if channel == "visible" {
+                        self.visible(part, value != 0.0);
+                    } else {
+                        self.visible_boxes(part, value != 0.0);
+                    }
+                    applied += 1;
+                }
+                continue;
+            }
+            if !matches!(channel, "tx" | "ty" | "tz" | "rx" | "ry" | "rz" | "sx" | "sy" | "sz") {
                 continue;
             }
             let one = BTreeMap::from([(target.clone(), expression.clone())]);
             if let Ok(evaluated) =
                 horizon_client_render::player_animation::evaluate_pose_expressions(
-                    &one, &current, context,
+                    &one, &current, &expression_context,
                 )
             {
                 for (name, pose) in evaluated {
@@ -259,6 +298,24 @@ mod cem_pose_integration_tests {
         assert_eq!(head[1], 3.0);
         assert_eq!(head[3], 0.2);
         assert_eq!(head[6], 1.0);
+    }
+
+    #[test]
+    fn ordered_variable_bindings_feed_later_pose_expressions() {
+        let mut poses = Poses {
+            map: [("head".to_owned(), [0.0; 9])].into_iter().collect(),
+            ..Default::default()
+        };
+        let context = ExpressionContext {
+            variables: BTreeMap::from([("limb_swing".to_owned(), 1.5)]),
+        };
+        let bindings = vec![
+            ("var.head_motion".to_owned(), "limb_swing * 2".to_owned()),
+            ("head.rx".to_owned(), "var.head_motion".to_owned()),
+        ];
+
+        assert_eq!(poses.apply_cem_bindings(&bindings, &context), 2);
+        assert_eq!(poses.map["head"][3], 3.0);
     }
 }
 
