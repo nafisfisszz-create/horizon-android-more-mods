@@ -555,6 +555,8 @@ impl Mods {
                 .map_err(|e| e.to_string())?;
             RecipesHost::add_to_linker::<State, HasSelf<State>>(&mut linker, |s| s)
                 .map_err(|e| e.to_string())?;
+            sound::add_to_linker::<State, HasSelf<State>>(&mut linker, |s| s)
+                .map_err(|e| e.to_string())?;
             self.engine = Some((engine, linker));
         }
         Ok(self.engine.as_ref().expect("made above"))
