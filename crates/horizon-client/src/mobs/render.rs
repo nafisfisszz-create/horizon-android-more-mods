@@ -290,7 +290,9 @@ fn cem_box_polygons(
         }
         let offset = cem_array(&cube["textureOffset"], [0.0; 2]);
         let (u, v) = (offset[0], offset[1]);
-        let (w, h, d) = (x1 - x0, y1 - y0, z1 - z0);
+        // Texture rectangles use the uninflated box dimensions; sizeAdd changes
+        // geometry only, not the source texture layout.
+        let (w, h, d) = (width, height, depth);
 
         // The six rectangles follow the classic CEM box UV net.
         add_face(
@@ -442,7 +444,12 @@ fn attach_player_cem_models(
         let Some(custom) = build_cem_part(source, texture_size, modules, 0) else {
             continue;
         };
-        let Some(parent) = find_cem_part_mut(base, part_name) else {
+        let parent = if part_name == "root" {
+            Some(base)
+        } else {
+            find_cem_part_mut(base, part_name)
+        };
+        let Some(parent) = parent else {
             continue;
         };
         if !attach {
