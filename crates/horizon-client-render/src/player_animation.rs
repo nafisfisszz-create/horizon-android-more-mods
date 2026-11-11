@@ -107,13 +107,12 @@ fn inspect_value(
     match value {
         Value::Object(map) => {
             for (key, child) in map {
-                if let Some(text) = child.as_str() {
-                    if looks_like_expression(key, text) {
-                        expressions.push(text.to_owned());
-                    }
-                } else {
-                    inspect_value(child, depth + 1, count, expressions)?;
+                if let Some(text) = child.as_str()
+                    && looks_like_expression(key, text)
+                {
+                    expressions.push(text.to_owned());
                 }
+                inspect_value(child, depth + 1, count, expressions)?;
             }
         }
         Value::Array(items) => {
@@ -139,7 +138,7 @@ fn count_model_nodes(document: &Value) -> usize {
     fn visit(value: &Value) -> usize {
         match value {
             Value::Object(map) => {
-                let own = usize::from(map.contains_key("id") && (map.contains_key("boxes") || map.contains_key("submodels")));
+                let own = if map.contains_key("id") && (map.contains_key("boxes") || map.contains_key("submodels")) { 1 } else { 0 };
                 own + map.values().map(visit).sum::<usize>()
             }
             Value::Array(items) => items.iter().map(visit).sum(),
