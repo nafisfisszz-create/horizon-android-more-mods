@@ -7,6 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::Path,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 /// Maximum uncompressed JSON size accepted for one CEM resource file.
@@ -42,6 +43,8 @@ pub struct PlayerModelResources {
     normal_animation_bindings: Vec<(String, String)>,
     slim_animation_bindings: Vec<(String, String)>,
     variable_state: Arc<Mutex<HashMap<u32, BTreeMap<String, f64>>>>,
+    /// Per-player render timing for OptiFine CEM frame_time/frame_counter.
+    frame_state: Arc<Mutex<HashMap<u32, (Instant, u32)>>>,
 }
 
 impl PlayerModelResources {
@@ -61,6 +64,27 @@ impl PlayerModelResources {
             .ok()
             .and_then(|state| state.get(&entity_id).cloned())
             .unwrap_or_default()
+    }
+
+    /// Return the elapsed render-frame time and per-entity frame counter.
+    /// OptiFine defines frame_time in seconds, not ticks.
+    pub fn frame_inputs_for_entity(&self, entity_id: u32) -> (u32, f64) {
+        let now = Instant::now();
+        let Ok(mut state) = self.frame_state.lock() else {
+            return (0, 1.0 / 60.0);
+        };
+        if !state.contains_key(&entity_id) && state.len() >= 256 {
+            state.clear();
+        }
+        let entry = state.entry(entity_id).or_insert((now, 0));
+        let elapsed = now.duration_since(entry.0).as_secs_f64();
+        entry.0 = now;
+        entry.1 = (entry.1 + 1) % 27_720;
+        (entry.1, if elapsed.is_finite() && elapsed > 0.0 {
+            elapsed.min(0.25)
+        } else {
+            1.0 / 60.0
+        })
     }
 
     /// Save only user-defined CEM variables; built-in render inputs are recalculated.
@@ -135,6 +159,7 @@ pub fn load_player_models(root: &Path) -> Result<PlayerModelResources, String> {
         normal_animation_bindings,
         slim_animation_bindings,
         variable_state: Arc::new(Mutex::new(HashMap::new())),
+        frame_state: Arc::new(Mutex::new(HashMap::new())),
     })
 }
 
@@ -513,11 +538,55 @@ pub struct ExpressionContext {
 /// Unknown variables/functions fail closed instead of silently becoming zero.
 pub const MAX_EXPRESSION_BYTES: usize = 16 * 1024;
 
+/// Replace the small, explicit NBT predicate subset used by Fresh Animations.
+/// The player renderer supplies these booleans from its held-item and pose state;
+/// unsupported NBT queries evaluate false rather than breaking the whole expression.
+fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> String {
+    let mut output = String::with_capacity(source.len());
+    let mut cursor = 0;
+    while let Some(relative) = source[cursor..].find("nbt(") {
+        let start = cursor + relative;
+        output.push_str(&source[cursor..start]);
+        let args_start = start + 4;
+        let Some(close_relative) = source[args_start..].find(')') else {
+            output.push_str(&source[start..]);
+            return output;
+        };
+        let close = args_start + close_relative;
+        let args: String = source[args_start..close]
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .collect();
+        let key = match args.as_str() {
+            "SelectedItem.id,raw:iregex:.*shield.*" => "cem.nbt.main_shield",
+            "Inventory,raw:iregex:.*Slot:-106b.*shield.*" => "cem.nbt.off_shield",
+            "SelectedItem.id,raw:iregex:.*spear.*" => "cem.nbt.main_spear",
+            "equipment.offhand,raw:iregex:.*spear.*" => "cem.nbt.off_spear",
+            "Inventory,raw:iregex:.*Slot:-106b.*filled_map.*" => "cem.nbt.off_map",
+            "SelectedItem.id,raw:iregex:.*filled_map.*" => "cem.nbt.main_map",
+            "SleepingX,exists:true" => "cem.nbt.sleeping",
+            "abilities.flying,1" => "cem.nbt.flying",
+            "abilities.flying,0" => "cem.nbt.not_flying",
+            _ => "",
+        };
+        let value = if key.is_empty() {
+            0.0
+        } else {
+            context.variables.get(key).copied().unwrap_or(0.0)
+        };
+        output.push(if value != 0.0 { '1' } else { '0' });
+        cursor = close + 1;
+    }
+    output.push_str(&source[cursor..]);
+    output
+}
+
 pub fn evaluate_expression(source: &str, context: &ExpressionContext) -> Result<f64, String> {
     if source.len() > MAX_EXPRESSION_BYTES {
         return Err(format!("expression exceeds {MAX_EXPRESSION_BYTES} bytes"));
     }
-    let tokens = tokenize_expression(source)?;
+    let expanded = expand_nbt_predicates(source, context);
+    let tokens = tokenize_expression(&expanded)?;
     let mut parser = ExpressionParser { tokens, cursor: 0, context };
     let value = parser.parse_expression(0)?;
     if parser.cursor != parser.tokens.len() {

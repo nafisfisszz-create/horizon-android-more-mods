@@ -484,6 +484,8 @@ fn attach_player_cem_models(
 fn player_cem_context(
     m: &Mob,
     s: &anim::State,
+    frame_counter: u32,
+    frame_time: f64,
 ) -> horizon_client_render::player_animation::ExpressionContext {
     use std::collections::BTreeMap;
 
@@ -497,6 +499,18 @@ fn player_cem_context(
         ("head_yaw", f64::from(s.y_rot)),
         ("head_pitch", f64::from(s.x_rot)),
         ("swing_progress", f64::from(s.swing)),
+        ("frame_counter", f64::from(frame_counter)),
+        ("frame_time", frame_time),
+        ("is_first_person_hand", 0.0),
+        ("is_swinging_right_arm", flag(s.swing > 0.0 && m.extra.swing_right_arm == Some(true))),
+        ("is_swinging_left_arm", flag(s.swing > 0.0 && m.extra.swing_right_arm == Some(false))),
+        ("is_holding_item_right", flag(if m.main_arm_left() { m.extra.off_hand.is_some() } else { m.extra.main_hand.is_some() })),
+        ("is_holding_item_left", flag(if m.main_arm_left() { m.extra.main_hand.is_some() } else { m.extra.off_hand.is_some() })),
+        ("is_in_gui", 0.0),
+        ("is_paused", 0.0),
+        ("is_crawling", 0.0),
+        ("move_forward", 0.0),
+        ("move_strafing", 0.0),
         ("health", f64::from(m.health)),
         ("max_health", f64::from(m.attrs.max_health)),
         ("hurt_time", f64::from(m.hurt_time)),
@@ -564,6 +578,21 @@ fn player_cem_context(
             "is_swimming",
             flag(m.extra.swim.amount(s.partial) > 0.0 || m.fluids.in_water),
         ),
+    ] {
+        variables.insert(name.to_owned(), value);
+    }
+    let main_item = m.extra.main_hand.as_deref().unwrap_or("");
+    let off_item = m.extra.off_hand.as_deref().unwrap_or("");
+    for (name, value) in [
+        ("cem.nbt.main_shield", flag(main_item.contains("shield"))),
+        ("cem.nbt.off_shield", flag(off_item.contains("shield"))),
+        ("cem.nbt.main_spear", flag(main_item.contains("spear"))),
+        ("cem.nbt.off_spear", flag(off_item.contains("spear"))),
+        ("cem.nbt.main_map", flag(main_item.contains("filled_map"))),
+        ("cem.nbt.off_map", flag(off_item.contains("filled_map"))),
+        ("cem.nbt.sleeping", flag(m.extra.avatar_pose == crate::pose::Pose::Sleeping)),
+        ("cem.nbt.flying", 0.0),
+        ("cem.nbt.not_flying", 1.0),
     ] {
         variables.insert(name.to_owned(), value);
     }
@@ -2096,7 +2125,8 @@ fn render_visible(
     if avatar(m)
         && let Some(player_cem) = &data.player_cem
     {
-        let mut context = player_cem_context(m, &s);
+        let (frame_counter, frame_time) = player_cem.frame_inputs_for_entity(m.id);
+        let mut context = player_cem_context(m, &s, frame_counter, frame_time);
         context
             .variables
             .extend(player_cem.variables_for_entity(m.id));
