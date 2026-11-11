@@ -236,9 +236,18 @@ fn player_cem_context(
         ("is_right_handed", flag(!m.main_arm_left())),
         ("is_invisible", flag(m.invisible)),
         ("is_spectator", flag(m.extra.spectator)),
+        ("is_wet", flag(m.fluids.in_water || m.fluids.in_lava)),
+        ("is_in_water", flag(m.fluids.in_water)),
+        ("is_in_lava", flag(m.fluids.in_lava)),
+        ("is_burning", flag(m.fire_ticks > 0)),
+        ("is_glowing", flag(m.glowing)),
+        ("is_sitting", flag(m.extra.sitting)),
+        ("is_walking", flag(s.speed > 0.001)),
+        ("is_jumping", flag(!m.on_ground && m.velocity.y > 0.0)),
+        ("is_swinging", flag(s.swing > 0.0)),
         (
             "is_swimming",
-            flag(m.extra.swim.amount(s.partial) > 0.0),
+            flag(m.extra.swim.amount(s.partial) > 0.0 || m.fluids.in_water),
         ),
     ] {
         variables.insert(name.to_owned(), value);
