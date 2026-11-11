@@ -18,6 +18,7 @@ class AndroidWorkflowTests(unittest.TestCase):
     def test_source_workflow_runs_repository_checks(self):
         text = (ROOT / ".github/workflows/android-source.yml").read_text(encoding="utf-8")
         self.assertIn("branches: [android]", text)
+        self.assertIn('".github/workflows/android-dev.yml"', text)
         self.assertIn("python3 tools/check_public_tree.py --history", text)
         self.assertIn("python3 -m unittest discover -s tests -p 'test_android*.py'", text)
         self.assertIn("cmp .github/workflows/android-source.yml packaging/android/source-checks.yml", text)
