@@ -4,11 +4,16 @@ This is a staged compatibility project, not a JVM implementation.
 
 ## First milestone: metadata and dependency analysis
 
-The \`horizon-port-pack::fabric\` module reads \`fabric.mod.json\` from a Fabric JAR and extracts mod identity, environment, version, dependency declarations, entrypoint class names, Mixin configuration names and access-widener declarations.
+The `horizon-port-pack::fabric` module reads `fabric.mod.json` from a Fabric JAR and extracts mod identity, environment, version, dependency declarations, entrypoint class names, Mixin configuration names and access-widener declarations.
 
-The resolver checks duplicate IDs, missing required mod IDs, declared conflicts and dependency cycles, and produces a dependency-first order. Minecraft, Java and Fabric Loader requirements are reported separately for a later Horizon runtime adapter.
+Commands:
 
-**Version expressions are preserved but not evaluated yet.** A successful metadata scan does not mean a Java mod can run in Horizon.
+- `horizon-port-pack fabric-check <mod.jar>`: inspect one JAR and list Java-only blockers.
+- `horizon-port-pack fabric-scan <folder>`: scan all `.jar` files directly inside a folder, then report duplicate IDs, missing required dependencies, declared conflicts, dependency cycles and platform requirements.
+
+The resolver produces a dependency-first order. Minecraft, Java and Fabric Loader requirements are reported separately for a later Horizon runtime adapter.
+
+**Version expressions are preserved but not evaluated yet.** A successful metadata scan does not mean a Java mod can run in Horizon. The folder scan is non-recursive and does not extract or execute JAR contents.
 
 ## Java code boundary
 
