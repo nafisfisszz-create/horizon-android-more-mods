@@ -431,7 +431,7 @@ impl ExpressionParser<'_> {
                         }
                     }
                     self.expect(ExprToken::RightParen)?;
-                    apply_function(&name, &args)?
+                    apply_function(&name, &args, self.context)?
                 } else {
                     match name.as_str() {
                         "pi" | "PI" => std::f64::consts::PI,
@@ -500,7 +500,11 @@ fn binding_power(op: &str) -> Option<(u8, u8)> {
 }
 fn bool_num(value: bool) -> f64 { if value { 1.0 } else { 0.0 } }
 
-fn apply_function(name: &str, args: &[f64]) -> Result<f64, String> {
+fn apply_function(
+    name: &str,
+    args: &[f64],
+    context: &ExpressionContext,
+) -> Result<f64, String> {
     let unary = |f: fn(f64) -> f64| -> Result<f64, String> {
         if args.len() == 1 { Ok(f(args[0])) } else { Err(format!("{name} expects 1 argument")) }
     };
@@ -508,17 +512,63 @@ fn apply_function(name: &str, args: &[f64]) -> Result<f64, String> {
         if args.len() == 2 { Ok(f(args[0], args[1])) } else { Err(format!("{name} expects 2 arguments")) }
     };
     match name {
-        "sin" => unary(f64::sin), "cos" => unary(f64::cos), "tan" => unary(f64::tan),
-        "asin" => unary(f64::asin), "acos" => unary(f64::acos), "atan" => unary(f64::atan),
-        "sqrt" => unary(f64::sqrt), "abs" => unary(f64::abs), "floor" => unary(f64::floor),
-        "ceil" => unary(f64::ceil), "round" => unary(f64::round), "exp" => unary(f64::exp),
-        "ln" => unary(f64::ln), "signum" => unary(f64::signum),
-        "atan2" => binary(f64::atan2), "pow" => binary(f64::powf), "min" => binary(f64::min),
-        "max" => binary(f64::max), "fmod" => binary(|a, b| a % b),
-        "torad" => unary(f64::to_radians), "todeg" => unary(f64::to_degrees),
-        "if" => {
-            if args.len() == 3 { Ok(if args[0] != 0.0 { args[1] } else { args[2] }) }
-            else { Err("if expects 3 arguments".into()) }
+        "sin" => unary(f64::sin),
+        "cos" => unary(f64::cos),
+        "tan" => unary(f64::tan),
+        "asin" => unary(f64::asin),
+        "acos" => unary(f64::acos),
+        "atan" => unary(f64::atan),
+        "sqrt" => unary(f64::sqrt),
+        "abs" => unary(f64::abs),
+        "floor" => unary(f64::floor),
+        "ceil" => unary(f64::ceil),
+        "round" => unary(f64::round),
+        "exp" => unary(f64::exp),
+        "ln" | "log" => unary(f64::ln),
+        "frac" => unary(|x| x - x.floor()),
+        "signum" => unary(f64::signum),
+        "atan2" => binary(f64::atan2),
+        "pow" => binary(f64::powf),
+        "min" if args.len() >= 2 => Ok(args.iter().copied().fold(f64::INFINITY, f64::min)),
+        "max" if args.len() >= 2 => Ok(args.iter().copied().fold(f64::NEG_INFINITY, f64::max)),
+        "min" | "max" => Err(format!("{name} expects at least 2 arguments")),
+        "fmod" => binary(|a, b| {
+            let remainder = a % b;
+            if remainder != 0.0 && remainder.is_sign_negative() != b.is_sign_negative() {
+                remainder + b
+            } else {
+                remainder
+            }
+        }),
+        "torad" => unary(f64::to_radians),
+        "todeg" => unary(f64::to_degrees),
+        "random" => {
+            if args.len() > 1 { return Err("random expects 0 or 1 argument".into()); }
+            let seed = args.first().copied().or_else(|| context.variables.get("time").copied()).unwrap_or(0.0);
+            let value = (seed * 12.9898 + 78.233).sin() * 43_758.5453;
+            Ok(value - value.floor())
+        }
+        "if" | "ifb" => {
+            if args.len() >= 3 && args.len() % 2 == 1 {
+                for pair in args[..args.len() - 1].chunks_exact(2) {
+                    if pair[0] != 0.0 { return Ok(pair[1]); }
+                }
+                Ok(*args.last().unwrap())
+            } else {
+                Err(format!("{name} expects condition/value pairs and a final fallback"))
+            }
+        }
+        "between" => {
+            if args.len() == 3 { Ok(bool_num(args[0] >= args[1] && args[0] <= args[2])) }
+            else { Err("between expects 3 arguments".into()) }
+        }
+        "equals" => {
+            if args.len() == 3 { Ok(bool_num((args[0] - args[1]).abs() <= args[2].abs())) }
+            else { Err("equals expects 3 arguments".into()) }
+        }
+        "in" => {
+            if args.len() >= 2 { Ok(bool_num(args[1..].iter().any(|value| *value == args[0]))) }
+            else { Err("in expects at least 2 arguments".into()) }
         }
         "clamp" => {
             if args.len() != 3 { return Err("clamp expects 3 arguments".into()); }
@@ -526,8 +576,12 @@ fn apply_function(name: &str, args: &[f64]) -> Result<f64, String> {
             Ok(args[0].clamp(args[1], args[2]))
         }
         "lerp" => {
-            if args.len() == 3 { Ok(args[0] + (args[1] - args[0]) * args[2]) }
-            else { Err("lerp expects 3 arguments".into()) }
+            if args.len() == 3 {
+                // OptiFine order: lerp(amount, start, end).
+                Ok(args[1] + (args[2] - args[1]) * args[0])
+            } else {
+                Err("lerp expects 3 arguments".into())
+            }
         }
         _ => Err(format!("unsupported CEM function: {name}")),
     }
@@ -546,6 +600,10 @@ mod expression_tests {
         let c = context();
         assert_eq!(evaluate_expression("sin(pi / 2) + limb_swing * 3", &c).unwrap(), 7.0);
         assert_eq!(evaluate_expression("clamp(age, 0, 5)", &c).unwrap(), 5.0);
+        assert_eq!(evaluate_expression("lerp(0.5, 2, 6)", &c).unwrap(), 4.0);
+        assert_eq!(evaluate_expression("frac(2.75)", &c).unwrap(), 0.75);
+        assert_eq!(evaluate_expression("min(5, 2, 7)", &c).unwrap(), 2.0);
+        assert_eq!(evaluate_expression("between(3, 1, 4)", &c).unwrap(), 1.0);
     }
 
     #[test]
