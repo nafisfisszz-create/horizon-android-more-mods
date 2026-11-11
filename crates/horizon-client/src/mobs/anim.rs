@@ -1338,6 +1338,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         player_model_visibility(&mut p, 0, true);
         for part in ["body", "right_arm", "left_arm", "right_leg", "left_leg"] {
@@ -1365,6 +1366,7 @@ mod flight_pose_tests {
                     dummy: [0.0; 9],
                     skipped: Default::default(),
                     hidden: Default::default(),
+            ..Default::default()
                 };
                 let arm = if right { "right_arm" } else { "left_arm" };
                 p.xrot("head", pitch);
@@ -1422,6 +1424,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         enderman::anim(&seated, &state, &mut poses);
         let right = *poses.get("right_leg");
@@ -1477,6 +1480,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         let mut ground = make();
         let mut flight = make();
@@ -1518,6 +1522,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         let same_angle = |a: f32, b: f32| ((a - b + PI).rem_euclid(PI * 2.0) - PI).abs() < 1e-5;
         let mut h = Hum::new(ArmPose::Empty, ArmPose::Empty);
@@ -1611,6 +1616,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         let mut m = player();
         m.extra.main_hand = Some("minecraft:shield".into());
@@ -1632,6 +1638,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         setup(&m, &state, &mut p, &HashMap::new());
         assert!((p.get("right_arm")[3] + PI / 10.0).abs() < 1e-6);
@@ -1660,6 +1667,7 @@ mod flight_pose_tests {
             dummy: [0.0; 9],
             skipped: Default::default(),
             hidden: Default::default(),
+            ..Default::default()
         };
         let mut m = player();
         m.extra.main_hand = Some("minecraft:brush".into());
