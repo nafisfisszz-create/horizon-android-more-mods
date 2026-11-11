@@ -20,6 +20,9 @@ pub struct CemResource {
     pub document: Value,
     /// String-valued fields that look like CEM expressions.
     pub expressions: Vec<String>,
+    /// Animation destination/expression pairs, preserving source order.
+    /// CEM stores these in each model's "animations" array.
+    pub animation_bindings: Vec<(String, String)>,
     /// Number of objects in model/submodel arrays, when present.
     pub model_nodes: usize,
 }
@@ -100,8 +103,10 @@ fn parse_json_resource(source: &str, kind: &str) -> Result<CemResource, String> 
     let mut count = 0usize;
     let mut expressions = Vec::new();
     inspect_value(&document, 0, &mut count, &mut expressions)?;
+    let mut animation_bindings = Vec::new();
+    collect_animation_bindings(&document, &mut animation_bindings);
     let model_nodes = count_model_nodes(&document);
-    Ok(CemResource { document, expressions, model_nodes })
+    Ok(CemResource { document, expressions, animation_bindings, model_nodes })
 }
 
 fn inspect_value(
@@ -145,6 +150,49 @@ fn looks_like_expression(key: &str, text: &str) -> bool {
         || key.ends_with(".tx") || key.ends_with(".ty") || key.ends_with(".tz")
         || key.ends_with(".sx") || key.ends_with(".sy") || key.ends_with(".sz");
     expression_field && !text.trim().is_empty()
+}
+
+/// Collect OptiFine/EMF animation pairs from every model and JPM module.
+/// The source format uses an array of objects; keeping a Vec preserves the
+/// order in which a pack declares animation maps.
+fn collect_animation_bindings(value: &Value, out: &mut Vec<(String, String)>) {
+    match value {
+        Value::Object(map) => {
+            for (key, child) in map {
+                if key == "animations" {
+                    collect_animation_entries(child, out);
+                }
+                collect_animation_bindings(child, out);
+            }
+        }
+        Value::Array(items) => {
+            for child in items {
+                collect_animation_bindings(child, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_animation_entries(value: &Value, out: &mut Vec<(String, String)>) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                collect_animation_entries(item, out);
+            }
+        }
+        Value::Object(map) => {
+            for (target, expression) in map {
+                if let Some(expression) = expression.as_str()
+                    && !target.trim().is_empty()
+                    && !expression.trim().is_empty()
+                {
+                    out.push((target.clone(), expression.to_owned()));
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn count_model_nodes(document: &Value) -> usize {
@@ -209,6 +257,13 @@ mod tests {
         let jem = r#"{"models":[{"id":"body","boxes":[],"animations":{"body.rx":"sin(time)","body.ry":"cos(time)"}}],"model":"player_idle.jpm"}"#;
         let parsed = parse_jem(jem).unwrap();
         assert_eq!(parsed.expressions.len(), 2);
+        assert_eq!(
+            parsed.animation_bindings,
+            vec![
+                ("body.rx".to_owned(), "sin(time)".to_owned()),
+                ("body.ry".to_owned(), "cos(time)".to_owned()),
+            ]
+        );
         let mut refs = BTreeSet::new();
         collect_module_references(&parsed.document, &mut refs);
         assert!(refs.contains("player_idle.jpm"));
