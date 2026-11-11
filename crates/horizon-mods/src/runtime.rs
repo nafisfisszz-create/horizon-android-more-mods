@@ -1434,14 +1434,18 @@ impl sound::Host for State {
         const MAX_EVENT: usize = 128;
         const MAX_PER_CALL: usize = 4;
         const MAX_PER_SECOND: usize = 8;
-        let valid_part = |part: &str| {
+        let valid_namespace = |part: &str| {
+            !part.is_empty()
+                && part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.-".contains(&b))
+        };
+        let valid_path = |part: &str| {
             !part.is_empty()
                 && part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.-/".contains(&b))
         };
         let Some((namespace, path)) = event.split_once(':') else {
             return Err("sound event must be namespaced".into());
         };
-        if event.len() > MAX_EVENT || !valid_part(namespace) || !valid_part(path) {
+        if event.len() > MAX_EVENT || !valid_namespace(namespace) || !valid_path(path) {
             return Err("invalid sound event id".into());
         }
         if namespace != "minecraft" && namespace != self.id {
