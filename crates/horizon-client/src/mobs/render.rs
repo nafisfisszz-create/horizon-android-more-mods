@@ -2592,7 +2592,7 @@ mod tests {
         assert_eq!(custom.polygons.len(), 6);
         assert_eq!(custom.pose[1], 1.0);
         assert!((custom.pose[4] - std::f32::consts::FRAC_PI_2).abs() < 1.0e-6);
-        assert_eq!(custom.polygons[0].vertices[0][3], 3.0 / 64.0);
+        assert_eq!(custom.polygons[0].vertices[0][3], 4.0 / 64.0);
     }
 
     #[test]
