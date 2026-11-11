@@ -818,6 +818,11 @@ impl Game<'_> {
                     self.open_mod_screen(owner, false);
                     continue;
                 }
+                Output::Sound { event, position, volume, pitch } => {
+                    // Mods can request only registered events through the sound capability.
+                    self.audio.play_unshared(&event, position, volume, pitch);
+                    continue;
+                }
                 Output::Shake { strength, seconds } => {
                     self.mods.shake.add(strength, seconds);
                     continue;
