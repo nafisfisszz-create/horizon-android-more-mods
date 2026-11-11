@@ -49,7 +49,7 @@ pub use bindings::horizon::mods::{
 use bindings::{
     HorizonMod,
     exports::horizon::mods::events::Registration,
-    horizon::mods::{chat, command, game, hud, log as mod_log, storage},
+    horizon::mods::{chat, command, game, hud, log as mod_log, sound, storage},
 };
 pub use server_bindings::{
     exports::horizon::mods::server_events::{
@@ -247,6 +247,8 @@ pub enum Output {
         count: u32,
         components: String,
     },
+    /// `sound.play`: a local, one-shot registered sound event.
+    Sound { event: String, position: Option<[f64; 3]>, volume: f32, pitch: f32 },
 }
 
 /// The game's world as capability `world` reads it during a call: the
@@ -425,6 +427,8 @@ struct State {
     /// not disk I/O time, so a loop of small-fuel, large-payload `set`s
     /// needs its own budget.
     storage_budget: u64,
+    /// Sound requests accepted during the current hook call.
+    sounds_queued: usize,
     limits: StoreLimits,
     world: WorldSlot,
 }
@@ -623,6 +627,7 @@ impl Mods {
             browser: BrowserState::default(),
             data_dir,
             storage_budget: STORAGE_WRITE_BUDGET,
+            sounds_queued: 0,
             limits: StoreLimitsBuilder::new()
                 .memory_size(MEMORY)
                 .instances(16)
@@ -766,6 +771,7 @@ impl Mods {
         let run = entry.run.as_mut()?;
         run.store.data_mut().snapshot = self.snapshot.clone();
         run.store.data_mut().storage_budget = STORAGE_WRITE_BUDGET;
+        run.store.data_mut().sounds_queued = 0;
         let started = Instant::now();
         let result = run.store.set_fuel(fuel).and_then(|()| f(run));
         // An average over about the last 64 calls.
@@ -1412,6 +1418,47 @@ impl game::Host for State {
         (*at <= distance.min(RAYCAST_MAX) && !distance.is_nan()).then(|| hit.clone())
     }
 }
+impl sound::Host for State {
+    fn play(
+        &mut self,
+        event: String,
+        position: Option<sound::Position>,
+        volume: f32,
+        pitch: f32,
+    ) -> Result<(), String> {
+        const MAX_EVENT: usize = 128;
+        const MAX_PER_CALL: usize = 4;
+        let valid_part = |part: &str| {
+            !part.is_empty()
+                && part.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"_.-/".contains(&b))
+        };
+        let Some((namespace, path)) = event.split_once(':') else {
+            return Err("sound event must be namespaced".into());
+        };
+        if event.len() > MAX_EVENT || !valid_part(namespace) || !valid_part(path) {
+            return Err("invalid sound event id".into());
+        }
+        if namespace != "minecraft" && namespace != self.id {
+            return Err("a mod may only play minecraft events or events in its own namespace".into());
+        }
+        if !volume.is_finite() || !pitch.is_finite() {
+            return Err("volume and pitch must be finite numbers".into());
+        }
+        if self.sounds_queued >= MAX_PER_CALL {
+            return Err("at most four sound requests are allowed per hook call".into());
+        }
+        let position = position.map(|p| [p.x, p.y, p.z]);
+        self.out.push(Output::Sound {
+            event,
+            position,
+            volume: volume.clamp(0.0, 1.0),
+            pitch: pitch.clamp(0.5, 2.0),
+        });
+        self.sounds_queued += 1;
+        Ok(())
+    }
+}
+
 impl browser::Host for State {
     fn set_items(&mut self, items: Vec<BrowserStack>) {
         self.browser.items = items
