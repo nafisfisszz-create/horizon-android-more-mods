@@ -89,7 +89,7 @@ pub fn scan_jar(path: &Path) -> Result<BytecodeScan, String> {
         let name = entry.name().map_err(|e| e.to_string())?.into_owned();
         if !name.ends_with(".class") { continue; }
         if entry.size() > MAX_CLASS_BYTES {
-            result.malformed_classes.push(format!("{} (over 16 MiB)", entry.name()));
+            result.malformed_classes.push(format!("{name} (over 16 MiB)"));
             continue;
         }
         let mut bytes = Vec::with_capacity(entry.size() as usize);
