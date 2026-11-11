@@ -4,7 +4,7 @@
 //! It parses the JSON resource files and keeps their source tree intact so a
 //! later model/animation evaluator can consume the exact pack-specific schema.
 use serde_json::Value;
-use std::{collections::BTreeSet, path::Path};
+use std::{collections::{BTreeMap, BTreeSet}, path::Path};
 
 /// Maximum uncompressed JSON size accepted for one CEM resource file.
 pub const MAX_RESOURCE_BYTES: usize = 1 << 20;
@@ -29,7 +29,10 @@ pub struct CemResource {
 pub struct PlayerModelResources {
     pub normal: CemResource,
     pub slim: CemResource,
-    pub modules: BTreeSet<String>,
+    /// Referenced JPM modules loaded from the same CEM resource directory.
+    /// The optional face module is intentionally excluded: this implementation
+    /// targets body/player animation only.
+    pub modules: BTreeMap<String, CemResource>,
 }
 
 /// Parse a player .jem model file.
@@ -59,9 +62,19 @@ pub fn load_player_models(root: &Path) -> Result<PlayerModelResources, String> {
     let slim_text = read_resource(&slim_path)?;
     let normal = parse_jem(&normal_text)?;
     let slim = parse_jem(&slim_text)?;
-    let mut modules = BTreeSet::new();
-    collect_module_references(&normal.document, &mut modules);
-    collect_module_references(&slim.document, &mut modules);
+    let mut module_names = BTreeSet::new();
+    collect_module_references(&normal.document, &mut module_names);
+    collect_module_references(&slim.document, &mut module_names);
+    // Fresh Animations may reference player_face.jpm, but face animation is
+    // explicitly outside this feature's scope.
+    module_names.remove("player_face.jpm");
+
+    let mut modules = BTreeMap::new();
+    for name in module_names {
+        let path = root.join(&name);
+        let source = read_resource(&path)?;
+        modules.insert(name, parse_jpm(&source)?);
+    }
     Ok(PlayerModelResources { normal, slim, modules })
 }
 
