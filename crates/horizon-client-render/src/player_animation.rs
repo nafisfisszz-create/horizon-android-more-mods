@@ -726,6 +726,12 @@ fn apply_function(
         }),
         "torad" => unary(f64::to_radians),
         "todeg" => unary(f64::to_degrees),
+        // OptiFine CEM wraps angles to the signed-radian interval. Fresh Animations
+        // uses this to avoid discontinuities when the player's head crosses +/-PI.
+        "wraprad" => unary(|angle| {
+            let tau = 2.0 * std::f64::consts::PI;
+            (angle + std::f64::consts::PI).rem_euclid(tau) - std::f64::consts::PI
+        }),
         "random" => {
             if args.len() > 1 { return Err("random expects 0 or 1 argument".into()); }
             let seed = args.first().copied().or_else(|| context.variables.get("time").copied()).unwrap_or(0.0);
@@ -788,6 +794,8 @@ mod expression_tests {
         assert_eq!(evaluate_expression("frac(2.75)", &c).unwrap(), 0.75);
         assert_eq!(evaluate_expression("min(5, 2, 7)", &c).unwrap(), 2.0);
         assert_eq!(evaluate_expression("between(3, 1, 4)", &c).unwrap(), 1.0);
+        assert!((evaluate_expression("wraprad(3.5)", &c).unwrap() + 2.783185307179586).abs() < 1e-12);
+        assert!((evaluate_expression("wraprad(-3.5)", &c).unwrap() - 2.783185307179586).abs() < 1e-12);
         assert_eq!(evaluate_expression("var.counter + 1", &c).unwrap(), 1.0);
         assert_eq!(evaluate_expression("varb.flag ? 1 : 0", &c).unwrap(), 0.0);
         let mut hierarchical = c.clone();
