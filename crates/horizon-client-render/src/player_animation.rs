@@ -3,7 +3,11 @@
 //! Horizon's player renderer consumes these resources to attach custom JEM
 //! geometry and apply supported CEM animation channels to player poses.
 use serde_json::Value;
-use std::{collections::{BTreeMap, BTreeSet}, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 /// Maximum uncompressed JSON size accepted for one CEM resource file.
 pub const MAX_RESOURCE_BYTES: usize = 1 << 20;
