@@ -491,6 +491,14 @@ fn player_cem_context(
 
     let flag = |value: bool| if value { 1.0 } else { 0.0 };
     let mut variables = BTreeMap::new();
+    let yaw = f64::from(m.yaw).to_radians();
+    let move_forward = -m.velocity.x * yaw.sin() + m.velocity.z * yaw.cos();
+    let move_strafing = m.velocity.x * yaw.cos() + m.velocity.z * yaw.sin();
+    let (holding_right, holding_left) = if m.main_arm_left() {
+        (m.extra.off_hand.is_some(), m.extra.main_hand.is_some())
+    } else {
+        (m.extra.main_hand.is_some(), m.extra.off_hand.is_some())
+    };
     for (name, value) in [
         ("limb_swing", f64::from(s.pos)),
         ("limb_speed", f64::from(s.speed)),
@@ -504,9 +512,16 @@ fn player_cem_context(
         ("is_first_person_hand", 0.0),
         ("is_in_gui", 0.0),
         ("is_paused", 0.0),
-        ("is_crawling", 0.0),
-        ("move_forward", 0.0),
-        ("move_strafing", 0.0),
+        (
+            "is_crawling",
+            flag(m.extra.avatar_pose == crate::pose::Pose::Swimming && !m.fluids.in_water),
+        ),
+        ("move_forward", move_forward),
+        ("move_strafing", move_strafing),
+        ("fluid_depth_up", m.fluids.water),
+        ("rule_index", 0.0),
+        ("is_holding_item_right", flag(holding_right)),
+        ("is_holding_item_left", flag(holding_left)),
         ("health", f64::from(m.health)),
         ("max_health", f64::from(m.attrs.max_health)),
         ("hurt_time", f64::from(m.hurt_time)),
