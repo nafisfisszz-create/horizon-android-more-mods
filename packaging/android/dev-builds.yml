@@ -10,6 +10,7 @@ on:
       - "crates/horizon-client/src/mobs/anim.rs"
       - "crates/horizon-client/src/mobs/data.rs"
       - "crates/horizon-client/src/mobs/render.rs"
+      - ".github/workflows/android-dev.yml"
   workflow_dispatch:
     inputs:
       build_type:
@@ -38,7 +39,7 @@ permissions:
 
 concurrency:
   group: android-apk-${{ github.ref }}-${{ inputs.build_type }}
-  cancel-in-progress: ${{ inputs.build_type == 'Dev Builds' }}
+  cancel-in-progress: ${{ github.event_name == 'push' || inputs.build_type == 'Dev Builds' }}
 
 jobs:
   build:
