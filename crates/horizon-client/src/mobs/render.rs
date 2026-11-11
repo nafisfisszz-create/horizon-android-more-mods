@@ -2024,11 +2024,20 @@ fn render_visible(
     let overlay = u32::from(red_overlay(m));
     let s = anim::state(m, alpha);
     let (model_key, texture) = body(m);
-    let model = m
+    let mut model = m
         .kind
         .layer(&model_key)
         .cloned()
         .unwrap_or_else(|| m.kind.model.clone());
+    // Fresh Animations player CEM: attach the JEM's custom boxes and submodels
+    // to the vanilla player rig before creating per-frame poses. The face JPM
+    // is intentionally excluded by the resource loader.
+    if avatar(m)
+        && let Some(player_cem) = &data.player_cem
+    {
+        let resource = if m.slim { &player_cem.slim } else { &player_cem.normal };
+        attach_player_cem_models(&mut model, resource, &player_cem.modules);
+    }
     let mut poses = Poses::new(&model);
     anim::setup(m, &s, &mut poses, &data.animations);
     if avatar(m)
