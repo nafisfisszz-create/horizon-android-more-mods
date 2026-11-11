@@ -584,10 +584,6 @@ fn player_cem_context(
     let main_item = m.extra.main_hand.as_deref().unwrap_or("");
     let off_item = m.extra.off_hand.as_deref().unwrap_or("");
     for (name, value) in [
-        ("cem.nbt.main_shield", flag(main_item.contains("shield"))),
-        ("cem.nbt.off_shield", flag(off_item.contains("shield"))),
-        ("cem.nbt.main_spear", flag(main_item.contains("spear"))),
-        ("cem.nbt.off_spear", flag(off_item.contains("spear"))),
         ("cem.nbt.main_map", flag(main_item.contains("filled_map"))),
         ("cem.nbt.off_map", flag(off_item.contains("filled_map"))),
         ("cem.nbt.sleeping", flag(m.extra.avatar_pose == crate::pose::Pose::Sleeping)),

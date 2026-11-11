@@ -558,10 +558,6 @@ fn expand_nbt_predicates(source: &str, context: &ExpressionContext) -> String {
             .filter(|c| !c.is_whitespace())
             .collect();
         let key = match args.as_str() {
-            "SelectedItem.id,raw:iregex:.*shield.*" => "cem.nbt.main_shield",
-            "Inventory,raw:iregex:.*Slot:-106b.*shield.*" => "cem.nbt.off_shield",
-            "SelectedItem.id,raw:iregex:.*spear.*" => "cem.nbt.main_spear",
-            "equipment.offhand,raw:iregex:.*spear.*" => "cem.nbt.off_spear",
             "Inventory,raw:iregex:.*Slot:-106b.*filled_map.*" => "cem.nbt.off_map",
             "SelectedItem.id,raw:iregex:.*filled_map.*" => "cem.nbt.main_map",
             "SleepingX,exists:true" => "cem.nbt.sleeping",
