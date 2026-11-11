@@ -17,6 +17,11 @@ on:
       - "crates/cargo-horizon-mod/**"
       - "crates/horizon-mods/src/**"
       - "crates/horizon-client/src/game/mods.rs"
+      - "crates/horizon-client/src/android/**"
+      - "crates/horizon-client/src/content_files.rs"
+      - "crates/horizon-client/src/mod_list.rs"
+      - "crates/horizon-client/src/browser/**"
+      - "crates/horizon-port-pack/**"
       - ".github/workflows/android-dev.yml"
   workflow_dispatch:
     inputs:
