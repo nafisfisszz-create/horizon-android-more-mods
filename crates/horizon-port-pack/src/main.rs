@@ -1,34 +1,15 @@
-//! `horizon-port-pack`: port a Java modpack to Horizon (`docs/modpacks.md`).
+//! \`horizon-port-pack\`: port a Java modpack to Horizon (\`docs/modpacks.md\`).
 //!
-//! - `import <pack> <work>`: a `.mrpack`, CurseForge zip or instance folder
-//!   to `<work>/pack.json`.
-//! - `inventory <work> [--offline]`: Modrinth metadata (cached in
-//!   `<work>/modrinth.json`), the jars in the instance or `<work>/jars/`,
-//!   classes, tiers and dependency layers in `<work>/inventory.json` and
-//!   `inventory.csv`.
-//! - `fetch <work> [--from <folder>] [<mod id>...]`: the jars of the
-//!   portable mods (content, data tier; or the ones named) into
-//!   `<work>/jars/`: copied from the player's folder, or downloaded from the
-//!   pack's own links or Modrinth's CDN, hash checked. What only CurseForge
-//!   has needs a key and is listed in `<work>/fetch.json`.
-//! - `carry <work> [--resources <prepared>] [<mod id>...]`: the content
-//!   mods' data and assets into `<work>/mods/<id>/carry/`, a folder mod for
-//!   local use. With the NeoForge oracle's `<work>/oracle/facts.json`
-//!   (`tools/neoforge_oracle.py`), blocks and items come from its facts;
-//!   `--resources` limits templates to the blocks Horizon's tables have.
-//! - `report <work>`: the coverage report, per mod ported, partial, not yet
-//!   or not needed with the reason, in `<work>/coverage.json` and
-//!   `coverage.md`.
-//! - `check <jar> <out>`: one mod jar on its own, as the launcher's mod
-//!   browser installs it: carried over into `<out>/carry/`, its classes
-//!   read, and the verdict (Works, Partly, Doesn't run) in
-//!   `<out>/check.json`.
-//! - `port <pack> <work> [--from <folder>] [--resources <prepared>]`: every
-//!   step for the portable mods, as the launcher's "Import modpack" runs it.
-//! - `upgrade-datapack <pack> <out> | --world <world>`: a 26.2 data pack
-//!   (zip or folder) with its world generation rewritten in 26.3's formats
-//!   (`docs/datapack-upgrade.md`), into the folder `<out>`, or into
-//!   `<world>/datapacks/<pack name>-26.3`.
+//! - \`import <pack> <work>\`: a \`.mrpack\`, CurseForge zip or instance folder
+//!   to \`<work>/pack.json\`.
+//! - \`inventory <work> [--offline]\`: Modrinth metadata and jar inventory.
+//! - \`fetch <work> [--from <folder>] [<mod id>...]\`: fetch mod jars.
+//! - \`carry <work> [--resources <prepared>] [<mod id>...]\`: carry over data/assets.
+//! - \`report <work>\`: write the coverage report.
+//! - \`check <jar> <out>\`: inspect one mod jar for content carry-over.
+//! - \`fabric-check <jar>\`: inspect Fabric metadata and report Java-only blockers.
+//! - \`port <pack> <work> [--from <folder>] [--resources <prepared>]\`: run the port pipeline.
+//! - \`upgrade-datapack <pack> <out> | --world <world>\`: upgrade a data pack.
 //!
 //! The work folder belongs to the user: jars and carried-over files stay
 //! there and are never uploaded or committed.
@@ -38,7 +19,7 @@ use std::{
     process::ExitCode,
 };
 
-const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
+const USAGE: &str = "usage: horizon-port-pack import <pack> <work> | inventory <work> [--offline] | fetch <work> [--from <folder>] [<mod id>...] | carry <work> [--resources <prepared>] [<mod id>...] | report <work> | check <jar> <out> | fabric-check <jar> | port <pack> <work> [--from <folder>] [--resources <prepared>] | upgrade-datapack <pack> (<out> | --world <world>)";
 
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -58,17 +39,11 @@ fn main() -> ExitCode {
                 let records: Vec<Record> = pipeline::read_json(&work.join("inventory.json"))?;
                 let only = rest();
                 let want = |r: &Record| {
-                    if only.is_empty() {
-                        pipeline::portable(r)
-                    } else {
-                        only.contains(&r.key)
-                    }
+                    if only.is_empty() { pipeline::portable(r) } else { only.contains(&r.key) }
                 };
                 fetch::fetch(work, &records, from.as_deref(), &want, log).map(drop)
             }
-            Some("carry") => {
-                pipeline::carry(path(1)?, resources.as_deref(), &rest(), log).map(drop)
-            }
+            Some("carry") => pipeline::carry(path(1)?, resources.as_deref(), &rest(), log).map(drop),
             Some("report") => {
                 let work = path(1)?;
                 pipeline::report(work, log)?;
@@ -78,11 +53,24 @@ fn main() -> ExitCode {
             Some("check") => {
                 let c = horizon_port_pack::check::check(path(1)?, path(2)?)?;
                 println!("{}: {}. {}", c.mod_id, c.verdict.label(), c.summary);
-                for p in &c.ports {
-                    println!("  ports: {p}");
-                }
-                for s in &c.skipped {
-                    println!("  skipped: {s}");
+                for p in &c.ports { println!("  ports: {p}"); }
+                for s in &c.skipped { println!("  skipped: {s}"); }
+                Ok(())
+            }
+            Some("fabric-check") => {
+                let metadata = horizon_port_pack::fabric::read_jar(path(1)?)?;
+                let analysis = metadata.analyze();
+                println!("{} {} ({})", metadata.id, metadata.version, metadata.environment);
+                if !metadata.name.is_empty() { println!("name: {}", metadata.name); }
+                println!("dependencies: {}", metadata.depends.iter().map(|d| d.mod_id.as_str()).collect::<Vec<_>>().join(", "));
+                println!("entrypoint groups: {}", metadata.entrypoints.len());
+                println!("mixin configs: {}", metadata.mixins.len());
+                println!("access widener: {}", if metadata.access_widener.is_some() { "yes" } else { "no" });
+                if analysis.blockers.is_empty() {
+                    println!("compatibility: metadata-only mod; inspect content and runtime requirements next");
+                } else {
+                    println!("compatibility: Java code requires porting");
+                    for blocker in analysis.blockers { println!("  blocker: {blocker}"); }
                 }
                 Ok(())
             }
@@ -104,9 +92,7 @@ fn main() -> ExitCode {
                     None => path(2)?.to_path_buf(),
                 };
                 let report = upgrade::upgrade_into(pack, &out)?;
-                for line in report.lines() {
-                    println!("{line}");
-                }
+                for line in report.lines() { println!("{line}"); }
                 println!("{}", out.display());
                 Ok(())
             }
@@ -122,7 +108,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// Removes `--name <value>` from `args`.
+/// Removes \`--name <value>\` from \`args\`.
 fn option(args: &mut Vec<String>, name: &str) -> Result<Option<PathBuf>, String> {
     match args.iter().position(|a| a == name) {
         Some(i) if i + 1 < args.len() => {
