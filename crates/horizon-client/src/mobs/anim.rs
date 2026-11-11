@@ -176,12 +176,15 @@ impl Poses {
         }
     }
     pub fn pose(&self, part: &Part) -> [f32; 9] {
-        self.part_paths
-            .get(&(part as *const Part as usize))
-            .and_then(|path| self.hierarchical_poses.get(path))
-            .copied()
-            .or_else(|| self.map.get(&part.name).copied())
-            .unwrap_or(part.pose)
+        let path = self.part_paths.get(&(part as *const Part as usize));
+        if let Some(path) = path.filter(|path| *path != &part.name) {
+            self.hierarchical_poses
+                .get(path)
+                .copied()
+                .unwrap_or(part.pose)
+        } else {
+            self.map.get(&part.name).copied().unwrap_or(part.pose)
+        }
     }
     pub fn skip_draw(&mut self, name: &str) {
         self.skipped.insert(name.to_owned());
@@ -405,6 +408,25 @@ mod cem_pose_integration_tests {
         assert_eq!(head[1], 3.0);
         assert_eq!(head[3], 0.2);
         assert_eq!(head[6], 1.0);
+    }
+
+    #[test]
+    fn vanilla_pose_updates_are_not_shadowed_by_hierarchical_defaults() {
+        let model = Part {
+            name: "root".into(),
+            pose: [0.0; 9],
+            polygons: Vec::new(),
+            children: vec![Part {
+                name: "head".into(),
+                pose: [0.0; 9],
+                polygons: Vec::new(),
+                children: Vec::new(),
+            }],
+        };
+        let mut poses = Poses::new(&model);
+        poses.get("head")[3] = 0.5;
+
+        assert_eq!(poses.pose(&model.children[0])[3], 0.5);
     }
 
     #[test]
