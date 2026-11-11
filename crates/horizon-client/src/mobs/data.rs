@@ -46,6 +46,8 @@ pub struct MobData {
     /// Each entity type's `SpawnPlacements.getHeightmapType`.
     pub heightmaps: HashMap<String, String>,
     pub animations: HashMap<String, Animation>,
+    /// Player CEM resources from the active resource-pack overlay, if present.
+    pub player_cem: Option<horizon_client_render::player_animation::PlayerModelResources>,
     /// Replaced when the resource packs change (the rest of `MobData` never is).
     pub villager_hats: std::sync::RwLock<super::villager_hats::VillagerHats>,
     /// Biome tags (spawns_warm_variant_farm_animals, is_ocean...) by tag id.
@@ -74,6 +76,15 @@ impl MobData {
             }
             _ => Self::fallback(facts),
         };
+        let cem_root = root.join("assets/minecraft/optifine/cem");
+        if cem_root.join("player.jem").is_file()
+            && cem_root.join("player_slim.jem").is_file()
+        {
+            match horizon_client_render::player_animation::load_player_models(&cem_root) {
+                Ok(models) => data.player_cem = Some(models),
+                Err(error) => log::warn!("Horizon: could not load player CEM resources: {error}"),
+            }
+        }
         data.biome_tags = crate::items::load_tags(
             root,
             "worldgen/biome",
@@ -144,6 +155,7 @@ impl MobData {
             placements,
             heightmaps,
             animations,
+            player_cem: None,
             villager_hats: Default::default(),
             biome_tags: HashMap::new(),
             entity_tags: HashMap::new(),
@@ -201,6 +213,7 @@ impl MobData {
             placements: HashMap::new(),
             heightmaps: HashMap::new(),
             animations: HashMap::new(),
+            player_cem: None,
             villager_hats: Default::default(),
             biome_tags: HashMap::new(),
             entity_tags: HashMap::new(),
