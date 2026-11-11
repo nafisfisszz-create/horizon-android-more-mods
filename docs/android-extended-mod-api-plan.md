@@ -20,8 +20,11 @@ by Horizon.
 - The mod SDK is generated from `crates/horizon-mod-sdk/wit/horizon.wit`.
 - Existing client capabilities include game/player and clock reads, chat,
   commands, HUD, storage, UI, input, rendering, recipes, and browser access.
-- The current client WIT `game` interface does not expose biome, weather,
-  nearby entity queries, or sound playback.
+- The `game` capability exposes the local player, clock, and raycast. The
+  separate `world` capability already reads blocks and biome identifiers in
+  loaded chunks and can change blocks on supported server-side contexts.
+- Weather snapshots, nearby entity queries, and mod-controlled sound playback
+  are not currently exposed as client mod capabilities.
 - The renderer already contains an audio engine and sound-instance machinery.
   That is not, by itself, a mod-facing audio API.
 - `.hnmod` is a source/native-mod path and is not currently supported by the
@@ -49,13 +52,13 @@ by Horizon.
   changing generated WIT bindings.
 - Run the relevant SDK tests and Android build after each host/API change.
 
-### Phase 1 — world context API
+### Phase 1 — extend world context
 
-Introduce a separately permissioned world-context capability. Prefer one
-bounded snapshot per tick containing only data the engine can safely provide:
-dimension, biome identifier, world time, weather state, and whether the local
-player is in water or under open sky. Missing world/player data must be
-represented explicitly, not guessed.
+Build on the existing `world` capability rather than duplicating its block and
+biome reads. Add a separately permissioned, bounded weather/player-environment
+snapshot only after confirming the authoritative weather and player-state
+sources in the game loop. Missing world/player data must be represented
+explicitly, not guessed.
 
 Do not expose unrestricted world scans or arbitrary block/entity traversal.
 
@@ -94,8 +97,9 @@ Test on an actual ARM64 Android device, including:
 
 ## First implementation target
 
-Implement the world-context and sound capabilities as additive WIT interfaces,
-then wire them through the Wasmtime host and SDK. Do not add WIT declarations
+Extend the existing world capability for missing environment state, then add
+the sound capability as an additive WIT interface. Wire each through the
+Wasmtime host and SDK. Do not add WIT declarations
 alone and call the feature complete: a capability is complete only when the
 host implements it, permission checks are enforced, tests pass, and an Android
 ARM64 build succeeds.
